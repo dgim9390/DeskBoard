@@ -1,0 +1,37 @@
+# 의존성
+node_modules/
+
+# Expo / 빌드 산출물
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+ios/
+android/
+
+# 환경변수·비밀값 (예시 파일만 허용)
+.env
+.env.*
+!.env.example
+
+# 인증서·키
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+
+# 로그·캐시
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.tsbuildinfo
+.metro-health-check*
+
+# OS / 에디터
+.DS_Store
+.vscode/
+.idea/
