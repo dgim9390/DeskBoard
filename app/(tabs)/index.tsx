@@ -4,13 +4,14 @@ import { useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { DeskBar } from "@/components/DeskBar";
 import { DeskCanvas } from "@/components/DeskCanvas";
+import { AddProductModal } from "@/components/AddProductModal";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { ItemPicker } from "@/components/ItemPicker";
 import { SaveSetupModal } from "@/components/SaveSetupModal";
 import { SelectedBar } from "@/components/SelectedBar";
 import type { CATALOG } from "@/data/catalog";
 import { suggestPosition } from "@/lib/placement";
-import { useDeskStore } from "@/store/useDeskStore";
+import { useDeskStore, type CustomProduct } from "@/store/useDeskStore";
 
 export default function SimulatorScreen() {
   const addDeskItem = useDeskStore((s) => s.addDeskItem);
@@ -75,6 +76,35 @@ export default function SimulatorScreen() {
     [addDeskItem],
   );
 
+  // ── 링크로 추가한 "내 제품" ──
+  const addCustomProduct = useDeskStore((s) => s.addCustomProduct);
+  const removeCustomProduct = useDeskStore((s) => s.removeCustomProduct);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [removing, setRemoving] = useState<CustomProduct | null>(null);
+
+  const placeCustom = useCallback(
+    (p: Omit<CustomProduct, "id" | "createdAt">) => {
+      const { desk, deskItems } = useDeskStore.getState();
+      const pos = suggestPosition(p.kind, p, deskItems, desk);
+      setSelectedId(
+        addDeskItem({
+          name: p.name,
+          category: p.category,
+          kind: p.kind,
+          color: p.color,
+          width: p.width,
+          height: p.height,
+          price: p.price ?? 0,
+          imageUrl: p.imageUrl,
+          link: p.link,
+          site: p.site,
+          ...pos,
+        }),
+      );
+    },
+    [addDeskItem],
+  );
+
   return (
     <View className="flex-1 bg-zinc-950 px-3 pb-3 pt-2">
       {/* 상단: 캔버스 (남는 공간 전부) */}
@@ -84,8 +114,31 @@ export default function SimulatorScreen() {
       {/* 하단: 선택/책상 바 + 장비 리스트 (내용 높이만큼) */}
       <View className="pt-3">
         {selectedItem ? <SelectedBar item={selectedItem} onDeleted={() => setSelectedId(null)} onSelect={setSelectedId} /> : <DeskBar />}
-        <ItemPicker onPick={handlePick} />
+        <ItemPicker onPick={handlePick} onPickCustom={placeCustom} onAddLink={() => setLinkOpen(true)} onRemoveCustom={setRemoving} />
       </View>
+
+      <AddProductModal
+        visible={linkOpen}
+        onClose={() => setLinkOpen(false)}
+        onAdd={(p) => {
+          addCustomProduct(p); // "내 제품"에 보관해 다시 쓸 수 있게
+          placeCustom(p);
+          setLinkOpen(false);
+        }}
+      />
+
+      <ConfirmModal
+        visible={removing !== null}
+        title="내 제품에서 삭제"
+        message={`'${removing?.name ?? ""}'을(를) 내 제품 목록에서 지울까요? 이미 책상에 놓인 제품은 그대로 남아요.`}
+        confirmLabel="삭제"
+        destructive
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => {
+          if (removing) removeCustomProduct(removing.id);
+          setRemoving(null);
+        }}
+      />
 
       <ConfirmModal
         visible={clearOpen}

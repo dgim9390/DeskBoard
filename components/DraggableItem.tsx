@@ -241,6 +241,8 @@ export function DraggableItem({ item, scale, originX, originY, deskWidthPx, desk
             color={item.color}
             mount={item.mount}
             dims={{ w: item.width, h: item.height }}
+            imageUrl={item.imageUrl}
+            label={item.name}
           />
           {selected && (
             <View

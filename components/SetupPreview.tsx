@@ -30,6 +30,8 @@ export function SetupPreview({ desk, items, width }: { desk: DeskSize; items: De
             color={i.color}
             mount={i.mount}
             dims={{ w: i.width, h: i.height }}
+            imageUrl={i.imageUrl}
+            label={i.name}
           />
         </View>
       ))}

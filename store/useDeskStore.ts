@@ -13,7 +13,9 @@ export type ProductKind =
   // 데스크테리어 소품
   | "monitor-riser" | "wireless-charger" | "phone-stand" | "tablet-stand" | "headphones" | "headphone-stand"
   | "soundbar" | "mic-arm" | "desk-organizer" | "power-strip" | "trackpad" | "macro-pad" | "mouse-pad"
-  | "plant" | "mug" | "clock" | "humidifier" | "notebook-pad";
+  | "plant" | "mug" | "clock" | "humidifier" | "notebook-pad"
+  // 사용자가 링크로 추가한 제품: 제품 사진 그대로(photo) 또는 이름이 적힌 상자(generic)
+  | "photo" | "generic";
 
 export type ItemColor = "black" | "white";
 
@@ -54,6 +56,26 @@ export interface DeskItem {
   height: number; // cm (세로/깊이)
   rotation: number; // deg
   price: number; // KRW
+  /** 링크로 추가한 제품: 제품 사진, 구매 링크, 사이트 이름 */
+  imageUrl?: string;
+  link?: string;
+  site?: string;
+}
+
+/** 사용자가 링크(또는 직접 입력)로 만든 제품. "내 제품"에 보관돼 다시 쓸 수 있음 */
+export interface CustomProduct {
+  id: string;
+  name: string;
+  category: Category;
+  kind: ProductKind;
+  width: number; // cm
+  height: number; // cm
+  color?: ItemColor;
+  imageUrl?: string;
+  link?: string;
+  site?: string;
+  price?: number;
+  createdAt: number;
 }
 
 export interface DeskSize {
@@ -114,6 +136,9 @@ interface DeskState {
   reorder: (id: string, dir: "forward" | "backward") => void;
   removeItem: (id: string) => void;
   clearDesk: () => void;
+  customProducts: CustomProduct[];
+  addCustomProduct: (p: Omit<CustomProduct, "id" | "createdAt">) => CustomProduct;
+  removeCustomProduct: (id: string) => void;
 }
 
 // ── 결합 규칙 ────────────────────────────────────────────
@@ -393,6 +418,14 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   removeItem: (id) => set((s) => ({ deskItems: s.deskItems.filter((i) => i.id !== id) })),
 
   clearDesk: () => set({ deskItems: [] }),
+
+  customProducts: [],
+  addCustomProduct: (p) => {
+    const product: CustomProduct = { ...p, id: makeId(), createdAt: Date.now() };
+    set((s) => ({ customProducts: [product, ...s.customProducts] }));
+    return product;
+  },
+  removeCustomProduct: (id) => set((s) => ({ customProducts: s.customProducts.filter((x) => x.id !== id) })),
 }));
 
 // ── 계정(Supabase) 동기화 ─────────────────────────────────
@@ -444,7 +477,7 @@ function startAuth() {
 
 // ── 기기 저장 (앱을 다시 켜도 유지, 웹은 localStorage) ─────────────
 const STORAGE_KEY = "deskterior-store:v1";
-type Persisted = Pick<DeskState, "desk" | "deskItems" | "savedSetups" | "activeSetupId">;
+type Persisted = Pick<DeskState, "desk" | "deskItems" | "savedSetups" | "activeSetupId" | "customProducts">;
 
 AsyncStorage.getItem(STORAGE_KEY)
   .then((raw) => {
@@ -455,6 +488,7 @@ AsyncStorage.getItem(STORAGE_KEY)
         ...(saved.deskItems && { deskItems: saved.deskItems }),
         savedSetups: saved.savedSetups ?? [],
         activeSetupId: saved.activeSetupId ?? null,
+        customProducts: saved.customProducts ?? [],
       });
     }
   })
@@ -464,7 +498,7 @@ AsyncStorage.getItem(STORAGE_KEY)
     let last = "";
     useDeskStore.subscribe((s) => {
       // 로그인 중인 셋업은 계정에 있으므로 기기에는 로그아웃 상태의 셋업만 보관
-      const data: Persisted = { desk: s.desk, deskItems: s.deskItems, savedSetups: s.user ? [] : s.savedSetups, activeSetupId: s.activeSetupId };
+      const data: Persisted = { desk: s.desk, deskItems: s.deskItems, savedSetups: s.user ? [] : s.savedSetups, activeSetupId: s.activeSetupId, customProducts: s.customProducts };
       const json = JSON.stringify(data);
       if (json !== last) {
         last = json;

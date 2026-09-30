@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from "react-native";
+import { Linking, Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { MIN_ITEM_CM, defaultColor, findPartner, reorderTarget, useDeskStore, type DeskItem, type ItemColor } from "@/store/useDeskStore";
 import { SizeFields } from "./SizeFields";
@@ -58,8 +58,14 @@ export function SelectedBar({ item, onDeleted, onSelect }: Props) {
               + {item.mount.name} 결합됨
             </Text>
           )}
+          {!item.mount && item.site && (
+            <Text className="text-[11px] text-zinc-500" numberOfLines={1}>
+              {item.site}
+            </Text>
+          )}
         </View>
-        {COLORS.map((c) => (
+        {/* 사진으로 표시하는 제품은 색상 선택 없음 */}
+        {item.kind !== "photo" && COLORS.map((c) => (
           <Pressable
             key={c.value}
             onPress={() => setItemColor(item.id, c.value)}
@@ -107,7 +113,7 @@ export function SelectedBar({ item, onDeleted, onSelect }: Props) {
         </Pressable>
       </View>
 
-      <View className="mt-2 flex-row items-center">
+      <View className="mt-2 flex-row items-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
         <Chip icon="arrow-down" label="뒤로" onPress={() => reorder(item.id, "backward")} disabled={!canBackward} />
         <Chip icon="arrow-up" label="앞으로" onPress={() => reorder(item.id, "forward")} disabled={!canForward} />
         {item.mount ? (
@@ -119,6 +125,7 @@ export function SelectedBar({ item, onDeleted, onSelect }: Props) {
             onPress={() => onSelect(mountNearest(item.id))}
           />
         ) : null}
+        {item.link && <Chip icon="open-outline" label="제품 페이지" onPress={() => Linking.openURL(item.link!)} />}
       </View>
     </View>
   );

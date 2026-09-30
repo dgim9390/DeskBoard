@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { Image, View } from "react-native";
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, RadialGradient, Rect, Stop, Text as SvgText } from "react-native-svg";
 import { defaultColor, type Category, type ItemColor, type Mount, type ProductKind } from "@/store/useDeskStore";
 
@@ -1091,7 +1092,7 @@ const notebookPadArt = (p: Pal): Art => {
   };
 };
 
-const ART: Record<Exclude<ProductKind, "monitor" | "ultrawide">, (p: Pal) => Art> = {
+const ART: Record<Exclude<ProductKind, "monitor" | "ultrawide" | "photo" | "generic">, (p: Pal) => Art> = {
   keyboard: (p) => keyboardArt(p, false),
   "keyboard-full": (p) => keyboardArt(p, true),
   mouse: (p) => mouseArt(p, false),
@@ -1130,7 +1131,30 @@ const ART: Record<Exclude<ProductKind, "monitor" | "ultrawide">, (p: Pal) => Art
 
 type MountInfo = Pick<Mount, "kind" | "color">;
 
-function buildArt(kind: ProductKind, p: Pal, mount?: MountInfo, dims?: { w: number; h: number }): Art {
+/** 사진이 없거나 못 불러온 사용자 제품: 이름이 적힌 상자 (위에서 본 무난한 모양) */
+const genericArt = (p: Pal, label: string, dims?: { w: number; h: number }): Art => {
+  const W = Math.max(40, (dims?.w ?? 20) * 10);
+  const H = Math.max(40, (dims?.h ?? 20) * 10);
+  const fs = Math.max(14, Math.min(W / Math.max(4, label.length * 0.9), H * 0.35, 60));
+  return {
+    w: W,
+    h: H,
+    node: (
+      <>
+        <Defs>{L(p, "gnBody", [[0, p.body0], [1, p.body1]])}</Defs>
+        <Shadow w={W} h={H} r={Math.min(W, H) * 0.08} />
+        <Rect x={0} y={0} width={W} height={H} rx={Math.min(W, H) * 0.08} fill={U(p, "gnBody")} stroke={p.edge} strokeWidth={2} />
+        <Rect x={6} y={6} width={W - 12} height={H - 12} rx={Math.min(W, H) * 0.06} fill="none" stroke={p.detail} strokeOpacity={0.4} strokeDasharray="8 6" />
+        <SvgText x={W / 2} y={H / 2 + fs * 0.35} fontSize={fs} fontWeight="bold" fill={p.s === "w" ? "#3f3f46" : "#e4e4e7"} textAnchor="middle">
+          {label.length > 14 ? `${label.slice(0, 13)}…` : label}
+        </SvgText>
+      </>
+    ),
+  };
+};
+
+function buildArt(kind: ProductKind, p: Pal, mount?: MountInfo, dims?: { w: number; h: number }, label = ""): Art {
+  if (kind === "photo" || kind === "generic") return genericArt(p, label, dims);
   if (kind === "monitor" || kind === "ultrawide") {
     const ultra = kind === "ultrawide";
     const w = (dims?.w ?? (ultra ? 81.5 : 61.5)) * 10;
@@ -1153,11 +1177,38 @@ interface Props {
   mount?: MountInfo;
   /** 실제 크기(cm). 모니터는 이 비율로 스탠드/베젤을 다시 그림 */
   dims?: { w: number; h: number };
+  /** 사용자 제품(photo)의 사진 주소 */
+  imageUrl?: string;
+  /** 사진이 없을 때 상자에 적을 이름 */
+  label?: string;
 }
 
-export function ProductImage({ kind, width, height, fit = "meet", color, mount, dims }: Props) {
-  const art = buildArt(kind, PAL[color ?? defaultColor(kind)], mount, dims);
+/** 사용자 제품 사진. 비율을 유지해 박스 안에 맞추고, 못 불러오면 이름 상자로 대체 */
+function PhotoImage({ uri, width, height, fallback }: { uri: string; width: number | string; height: number | string; fallback: ReactNode }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <>{fallback}</>;
   return (
+    <View
+      style={{
+        width: width as number,
+        height: height as number,
+        borderRadius: 6,
+        overflow: "hidden",
+        backgroundColor: "#fff",
+        shadowColor: "#000",
+        shadowOpacity: 0.35,
+        shadowRadius: 6,
+        shadowOffset: { width: 2, height: 4 },
+      }}
+    >
+      <Image source={{ uri }} style={{ width: "100%", height: "100%" }} resizeMode="contain" onError={() => setFailed(true)} />
+    </View>
+  );
+}
+
+export function ProductImage({ kind, width, height, fit = "meet", color, mount, dims, imageUrl, label }: Props) {
+  const art = buildArt(kind, PAL[color ?? defaultColor(kind)], mount, dims, label);
+  const svg = (
     <Svg
       width={width}
       height={height}
@@ -1168,4 +1219,6 @@ export function ProductImage({ kind, width, height, fit = "meet", color, mount, 
       {art.node}
     </Svg>
   );
+  if (kind === "photo" && imageUrl) return <PhotoImage uri={imageUrl} width={width} height={height} fallback={svg} />;
+  return svg;
 }
