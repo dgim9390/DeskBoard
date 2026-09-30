@@ -18,14 +18,14 @@
 
 1. [**Releases**](https://github.com/dgim9390/deskterior/releases/latest)에서 `Deskterior-x.x.x-arm64.dmg`를 받습니다.
 2. `.dmg`를 열고 **Deskterior**를 **Applications** 폴더로 끌어다 놓습니다.
-3. 처음 실행할 때 **"확인되지 않은 개발자"** 또는 **"손상되었습니다"** 경고가 뜨면
+3. 처음 실행할 때 **"Apple에서 확인할 수 없습니다"** 경고가 뜨면 **완료**를 누르고
    **시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"** 를 누릅니다.
-   버튼이 없으면 터미널에서 아래를 한 번 실행한 뒤 다시 엽니다.
+   **"손상되었습니다"** 가 뜨면 터미널에서 아래를 한 번 실행한 뒤 다시 엽니다.
    ```bash
    xattr -dr com.apple.quarantine /Applications/Deskterior.app
    ```
 
-> Apple Silicon(M1 이후) 맥 전용입니다. Apple 개발자 서명이 없는 개인 배포 앱이라 첫 실행 시 경고가 뜹니다.
+> **Apple Silicon 맥 전용**입니다 (M1~M5 시리즈, A18 Pro 맥북 네오 등). 인텔 맥에서는 실행되지 않아요. Apple 개발자 서명이 없는 개인 배포 앱이라 첫 실행 시 경고가 뜹니다.
 
 ## 주요 기능
 
