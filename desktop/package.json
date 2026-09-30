@@ -1,0 +1,41 @@
+{
+  "name": "deskterior-desktop",
+  "productName": "Deskterior",
+  "version": "1.0.0",
+  "description": "데스크테리어 시뮬레이터 macOS 앱",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "web": "cd .. && npx expo export -p web && rm -rf desktop/web && cp -R dist desktop/web",
+    "start": "npm run web && electron .",
+    "dist": "npm run web && electron-builder --mac --arm64"
+  },
+  "build": {
+    "appId": "app.deskterior.desktop",
+    "productName": "Deskterior",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "web/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "identity": null
+    },
+    "dmg": {
+      "title": "Deskterior"
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.5.0",
+    "electron-builder": "^26.15.3"
+  }
+}

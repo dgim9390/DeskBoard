@@ -1,6 +1,10 @@
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
 
+/** 일반 웹 주소(http/https)에서 열렸는지. 맥 앱(app://)이면 인증 링크가 앱으로 돌아올 수 없음 */
+export const canReturnFromEmailLink = () =>
+  Platform.OS === "web" && typeof window !== "undefined" && /^https?:$/.test(window.location.protocol);
+
 /** Supabase 오류 메시지를 사용자용 한국어로 */
 export function authErrorMessage(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
@@ -23,7 +27,8 @@ export async function signIn(email: string, password: string) {
 export async function signUp(email: string, password: string): Promise<{ needsConfirm: boolean }> {
   // 인증 메일의 링크를 누르면 지금 보고 있는 앱 주소로 돌아오게 함
   // (Supabase 대시보드 Authentication → URL Configuration 의 Redirect URLs 에 이 주소가 허용돼 있어야 함)
-  const emailRedirectTo = Platform.OS === "web" && typeof window !== "undefined" ? window.location.origin : undefined;
+  // 맥 앱 등 웹 주소가 아니면 지정하지 않음 → Supabase Site URL(배포 사이트)에서 인증만 완료
+  const emailRedirectTo = canReturnFromEmailLink() ? window.location.origin : undefined;
   const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo } });
   if (error) throw error;
   // 이미 가입된 이메일이면 Supabase가 identities 없는 사용자를 돌려줌

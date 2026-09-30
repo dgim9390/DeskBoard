@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
-import { authErrorMessage, signIn, signUp } from "@/lib/auth";
+import { authErrorMessage, canReturnFromEmailLink, signIn, signUp } from "@/lib/auth";
 
 export type AuthMode = "login" | "signup";
 
@@ -53,7 +53,11 @@ export function AuthModal({ visible, initialMode, onClose }: Props) {
       } else {
         const { needsConfirm } = await signUp(email, password);
         if (needsConfirm) {
-          setNotice(`${email.trim()}로 인증 메일을 보냈어요. 메일의 링크를 누르면 이 화면으로 돌아와 자동으로 로그인돼요.`);
+          setNotice(
+            canReturnFromEmailLink()
+              ? `${email.trim()}로 인증 메일을 보냈어요. 메일의 링크를 누르면 이 화면으로 돌아와 자동으로 로그인돼요.`
+              : `${email.trim()}로 인증 메일을 보냈어요. 메일의 링크로 인증을 마친 뒤, 이 앱에서 로그인해 주세요.`,
+          );
           setMode("login");
           setPassword("");
           setPassword2("");

@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#27272f"/>
+      <stop offset="1" stop-color="#0c0c10"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d4ab80"/>
+      <stop offset="0.55" stop-color="#b98e63"/>
+      <stop offset="1" stop-color="#a47a51"/>
+    </linearGradient>
+    <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a4a52"/>
+      <stop offset="1" stop-color="#1c1c21"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#818cf8" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#818cf8" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="deskClip"><rect x="182" y="262" width="660" height="500" rx="28"/></clipPath>
+  </defs>
+
+  <!-- macOS 아이콘 영역 (824px 둥근 사각형, 여백 100px) -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="184" fill="none" stroke="#fff" stroke-opacity="0.08" stroke-width="3"/>
+
+  <!-- 책상 그림자 + 상판 -->
+  <rect x="190" y="282" width="660" height="500" rx="28" fill="#000" opacity="0.45"/>
+  <rect x="182" y="262" width="660" height="500" rx="28" fill="url(#wood)"/>
+  <g clip-path="url(#deskClip)" stroke="#6b4423" stroke-opacity="0.18" fill="none" stroke-width="3">
+    <path d="M182 318 C420 306 620 330 842 314"/>
+    <path d="M182 402 C400 414 640 392 842 408"/>
+    <path d="M182 488 C430 478 610 500 842 486"/>
+    <path d="M182 580 C420 592 650 568 842 584"/>
+    <path d="M182 672 C400 662 640 684 842 670"/>
+  </g>
+
+  <!-- 모니터 불빛 -->
+  <path d="M300 392 L724 392 L800 560 L224 560 Z" fill="url(#glow)" clip-path="url(#deskClip)"/>
+
+  <!-- 모니터 (위에서 본 모습): 받침 + 넥 + 본체 -->
+  <rect x="440" y="300" width="144" height="150" rx="12" fill="#1f1f25" stroke="#0b0b0e" stroke-width="3"/>
+  <circle cx="512" cy="316" r="16" fill="#3a3a42" stroke="#0b0b0e" stroke-width="3"/>
+  <rect x="504" y="316" width="16" height="50" rx="6" fill="#3a3a42"/>
+  <path d="M290 392 Q512 356 734 392 L734 404 L290 404 Z" fill="#2c2c33"/>
+  <rect x="284" y="392" width="456" height="22" rx="6" fill="url(#dark)" stroke="#0b0b0e" stroke-width="3"/>
+  <rect x="290" y="410" width="444" height="5" rx="2" fill="#818cf8" opacity="0.8"/>
+
+  <!-- 키보드 -->
+  <rect x="338" y="558" width="300" height="104" rx="14" fill="#000" opacity="0.3" transform="translate(6 10)"/>
+  <rect x="338" y="558" width="300" height="104" rx="14" fill="url(#dark)" stroke="#0b0b0e" stroke-width="3"/>
+  <g fill="#55555e">
+    <rect x="354" y="574" width="268" height="16" rx="4"/>
+    <rect x="354" y="598" width="268" height="16" rx="4"/>
+    <rect x="354" y="622" width="60" height="16" rx="4"/>
+    <rect x="422" y="622" width="132" height="16" rx="4"/>
+    <rect x="562" y="622" width="60" height="16" rx="4"/>
+  </g>
+  <g stroke="#1c1c21" stroke-width="3">
+    <path d="M386 574 V590 M418 574 V590 M450 574 V590 M482 574 V590 M514 574 V590 M546 574 V590 M578 574 V590 M610 574 V590"/>
+    <path d="M378 598 V614 M410 598 V614 M442 598 V614 M474 598 V614 M506 598 V614 M538 598 V614 M570 598 V614 M602 598 V614"/>
+  </g>
+
+  <!-- 마우스 -->
+  <path d="M708 566 C738 566 752 590 752 620 C752 654 736 676 708 676 C680 676 664 654 664 620 C664 590 678 566 708 566 Z" fill="#000" opacity="0.3" transform="translate(6 10)"/>
+  <path d="M708 566 C738 566 752 590 752 620 C752 654 736 676 708 676 C680 676 664 654 664 620 C664 590 678 566 708 566 Z" fill="url(#dark)" stroke="#0b0b0e" stroke-width="3"/>
+  <path d="M708 570 V612 M666 612 Q708 624 750 612" stroke="#0b0b0e" stroke-width="3" fill="none"/>
+  <rect x="702" y="584" width="12" height="20" rx="6" fill="#818cf8"/>
+</svg>

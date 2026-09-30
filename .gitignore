@@ -35,3 +35,9 @@ yarn-error.*
 .DS_Store
 .vscode/
 .idea/
+
+# 맥 앱 (desktop/): 의존성·웹 빌드 복사본·빌드 결과물
+desktop/node_modules/
+desktop/web/
+desktop/release/
+desktop/smoke.png
