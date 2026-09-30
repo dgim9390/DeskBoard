@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FlatList, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SetupPreview } from "@/components/SetupPreview";
@@ -33,6 +33,9 @@ export default function SetupScreen() {
   const deskItems = useDeskStore((s) => s.deskItems);
   const savedSetups = useDeskStore((s) => s.savedSetups);
   const activeSetupId = useDeskStore((s) => s.activeSetupId);
+  const user = useDeskStore((s) => s.user);
+  const cloudLoading = useDeskStore((s) => s.cloudLoading);
+  const syncError = useDeskStore((s) => s.syncError);
   const { removeItem, saveSetup, overwriteSetup, loadSetup, deleteSetup, renameSetup } = useDeskStore.getState();
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
@@ -55,6 +58,22 @@ export default function SetupScreen() {
 
   const header = (
     <View>
+      {/* 저장 위치 안내 */}
+      <View className={`mb-3 flex-row items-center rounded-xl px-3 py-2.5 ${user ? "bg-emerald-500/10" : "bg-zinc-900"}`}>
+        <Ionicons name={user ? "cloud-done-outline" : "phone-portrait-outline"} size={16} color={user ? "#6ee7b7" : "#a1a1aa"} />
+        <Text className={`ml-2 flex-1 text-xs leading-4 ${user ? "text-emerald-300" : "text-zinc-400"}`}>
+          {user
+            ? `${user.email} 계정에 저장돼요. 다른 기기에서도 로그인하면 불러올 수 있어요.`
+            : "지금은 이 기기에만 저장돼요. 왼쪽 위에서 로그인하면 계정에 저장돼요."}
+        </Text>
+        {cloudLoading && <ActivityIndicator size="small" color="#6ee7b7" />}
+      </View>
+      {syncError && (
+        <View className="mb-3 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2.5">
+          <Text className="text-xs leading-4 text-red-300">{syncError}</Text>
+        </View>
+      )}
+
       {/* 현재 배치 + 저장 */}
       <View className="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
         <View className="flex-row items-end justify-between">

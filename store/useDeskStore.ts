@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
+import { fetchSetups, removeSetup, upsertSetups } from "@/lib/cloud";
 import { clampInto, halfExtents, normalizeDeg } from "@/lib/geometry";
+import { supabase, supabaseConfigured } from "@/lib/supabase";
 
 export type Category = "monitor" | "keyboard" | "mouse" | "laptop" | "accessory";
 
@@ -72,10 +74,21 @@ export interface SavedSetup {
   items: DeskItem[];
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+}
+
 interface DeskState {
   desk: DeskSize;
   deskItems: DeskItem[];
+  /** 로그인하면 계정(Supabase)의 셋업, 로그아웃 상태면 이 기기에만 저장된 셋업 */
   savedSetups: SavedSetup[];
+  user: AuthUser | null;
+  /** 계정 셋업을 불러오는 중 */
+  cloudLoading: boolean;
+  /** 서버 저장 실패 등 사용자에게 보여줄 오류 */
+  syncError: string | null;
   /** 마지막으로 저장하거나 불러온 셋업 (덮어쓰기 대상) */
   activeSetupId: string | null;
   /** 현재 배치를 새 셋업으로 저장하고 id를 반환 */
@@ -243,20 +256,27 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   desk: initialDesk,
   deskItems: initialItems,
   savedSetups: [],
+  user: null,
+  cloudLoading: false,
+  syncError: null,
   activeSetupId: null,
 
   saveSetup: (name) => {
     const { desk, deskItems, savedSetups } = get();
     const setup: SavedSetup = { id: makeId(), name: name.trim() || `셋업 ${savedSetups.length + 1}`, savedAt: Date.now(), desk, items: deskItems };
     set({ savedSetups: [setup, ...savedSetups], activeSetupId: setup.id });
+    syncToCloud(() => upsertSetups([setup]));
     return setup.id;
   },
 
-  overwriteSetup: (id) =>
+  overwriteSetup: (id) => {
     set((s) => ({
       savedSetups: s.savedSetups.map((x) => (x.id === id ? { ...x, desk: s.desk, items: s.deskItems, savedAt: Date.now() } : x)),
       activeSetupId: id,
-    })),
+    }));
+    const x = get().savedSetups.find((v) => v.id === id);
+    if (x) syncToCloud(() => upsertSetups([x]));
+  },
 
   loadSetup: (id) =>
     set((s) => {
@@ -264,11 +284,17 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
       return x ? { desk: x.desk, deskItems: x.items, activeSetupId: id } : s;
     }),
 
-  renameSetup: (id, name) =>
-    set((s) => ({ savedSetups: s.savedSetups.map((x) => (x.id === id && name.trim() ? { ...x, name: name.trim() } : x)) })),
+  renameSetup: (id, name) => {
+    if (!name.trim()) return;
+    set((s) => ({ savedSetups: s.savedSetups.map((x) => (x.id === id ? { ...x, name: name.trim() } : x)) }));
+    const x = get().savedSetups.find((v) => v.id === id);
+    if (x) syncToCloud(() => upsertSetups([x]));
+  },
 
-  deleteSetup: (id) =>
-    set((s) => ({ savedSetups: s.savedSetups.filter((x) => x.id !== id), activeSetupId: s.activeSetupId === id ? null : s.activeSetupId })),
+  deleteSetup: (id) => {
+    set((s) => ({ savedSetups: s.savedSetups.filter((x) => x.id !== id), activeSetupId: s.activeSetupId === id ? null : s.activeSetupId }));
+    syncToCloud(() => removeSetup(id));
+  },
 
   setDeskSize: (width, depth) =>
     set((s) => {
@@ -369,6 +395,53 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   clearDesk: () => set({ deskItems: [] }),
 }));
 
+// ── 계정(Supabase) 동기화 ─────────────────────────────────
+const errText = (e: unknown) => (e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e));
+
+/** 로그인 상태면 서버에도 반영. 화면은 먼저 바꾸고(낙관적 업데이트) 실패하면 오류를 표시 */
+function syncToCloud(op: () => Promise<unknown>) {
+  if (!useDeskStore.getState().user) return;
+  op()
+    .then(() => useDeskStore.setState({ syncError: null }))
+    .catch((e) => useDeskStore.setState({ syncError: `서버에 저장하지 못했어요: ${errText(e)}` }));
+}
+
+let currentUserId: string | null = null;
+
+/** 로그인되면: 이 기기에만 있던 셋업을 계정으로 옮기고, 계정의 셋업 목록을 불러옴 */
+async function handleSignedIn(user: AuthUser) {
+  if (currentUserId === user.id) return; // 토큰 갱신 등으로 같은 사용자 이벤트가 반복될 때
+  currentUserId = user.id;
+  const deviceSetups = useDeskStore.getState().savedSetups;
+  useDeskStore.setState({ user, cloudLoading: true, syncError: null });
+  try {
+    await upsertSetups(deviceSetups);
+    const list = await fetchSetups();
+    useDeskStore.setState({ savedSetups: list, cloudLoading: false });
+  } catch (e) {
+    useDeskStore.setState({ cloudLoading: false, syncError: `계정 셋업을 불러오지 못했어요: ${errText(e)}` });
+  }
+}
+
+function handleSignedOut() {
+  if (currentUserId === null && !useDeskStore.getState().user) return;
+  currentUserId = null;
+  // 기기 셋업은 로그인 때 계정으로 옮겼으므로 목록을 비움 (다시 로그인하면 계정에서 불러옴)
+  useDeskStore.setState({ user: null, savedSetups: [], activeSetupId: null, syncError: null, cloudLoading: false });
+}
+
+function startAuth() {
+  if (!supabaseConfigured) return;
+  supabase.auth.onAuthStateChange((_event, session) => {
+    const u = session?.user;
+    // 콜백 안에서 Supabase 호출이 막히지 않도록 다음 틱에 처리 (Supabase 권장)
+    setTimeout(() => {
+      if (u) handleSignedIn({ id: u.id, email: u.email ?? "" });
+      else handleSignedOut();
+    }, 0);
+  });
+}
+
 // ── 기기 저장 (앱을 다시 켜도 유지, 웹은 localStorage) ─────────────
 const STORAGE_KEY = "deskterior-store:v1";
 type Persisted = Pick<DeskState, "desk" | "deskItems" | "savedSetups" | "activeSetupId">;
@@ -390,13 +463,16 @@ AsyncStorage.getItem(STORAGE_KEY)
     // 불러온 뒤부터 변경을 저장 (불러오기 전 기본값으로 덮어쓰지 않도록)
     let last = "";
     useDeskStore.subscribe((s) => {
-      const data: Persisted = { desk: s.desk, deskItems: s.deskItems, savedSetups: s.savedSetups, activeSetupId: s.activeSetupId };
+      // 로그인 중인 셋업은 계정에 있으므로 기기에는 로그아웃 상태의 셋업만 보관
+      const data: Persisted = { desk: s.desk, deskItems: s.deskItems, savedSetups: s.user ? [] : s.savedSetups, activeSetupId: s.activeSetupId };
       const json = JSON.stringify(data);
       if (json !== last) {
         last = json;
         AsyncStorage.setItem(STORAGE_KEY, json).catch(() => {});
       }
     });
+    // 기기 저장을 먼저 불러온 뒤 로그인 상태 확인 (순서가 바뀌면 계정 목록을 기기 목록이 덮어씀)
+    startAuth();
   });
 
 /** 현재 배치가 셋업과 같은지 (저장 안 된 변경 확인용) */
