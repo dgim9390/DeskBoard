@@ -5,17 +5,26 @@ const path = require("node:path");
 
 const out = process.env.SMOKE_SHOT || path.join(__dirname, "..", "smoke.png");
 
+setTimeout(() => {
+  console.log("SMOKE timeout");
+  app.exit(1);
+}, 20000);
+
 app.on("browser-window-created", (_e, win) => {
   win.webContents.once("did-finish-load", async () => {
     await new Promise((r) => setTimeout(r, 3000));
-    const result = await win.webContents.executeJavaScript(`({
+    const result = await win.webContents.executeJavaScript(`(async () => ({
       origin: location.origin,
       title: document.title,
       loginButton: !!document.querySelector('[aria-label="로그인"]'),
       saveButton: !!document.querySelector('[aria-label="현재 배치 저장"]'),
       picker: document.body.innerText.includes("장비 추가"),
+      linkCard: !!document.querySelector('[aria-label="링크로 제품 추가"]'),
+      // 맥 앱(app://)에서 배포된 링크 읽기 서버 호출 가능 여부
+      linkApi: await fetch("https://deskterior-one.vercel.app/api/product-preview?url=" + encodeURIComponent("https://www.keychron.com/products/keychron-k8-pro-qmk-via-wireless-mechanical-keyboard"))
+        .then((r) => r.json()).then((j) => j.title || j.message).catch((e) => "ERR " + e.message),
       localStorage: (() => { try { localStorage.setItem("__t", "1"); return localStorage.getItem("__t") === "1"; } catch (e) { return String(e); } })(),
-    })`);
+    }))()`).catch((e) => ({ error: String(e) }));
     console.log("SMOKE " + JSON.stringify(result));
     const img = await win.webContents.capturePage();
     fs.writeFileSync(out, img.toPNG());
