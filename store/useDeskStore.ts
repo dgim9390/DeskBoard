@@ -78,9 +78,15 @@ export interface CustomProduct {
   createdAt: number;
 }
 
+export type DeskMaterial = "oak" | "walnut" | "maple" | "white" | "black" | "concrete";
+export type Lighting = "day" | "evening" | "night";
+
+/** 책상 크기와 분위기. 셋업에 함께 저장됨 (예전 셋업은 material/lighting 이 없어 기본값) */
 export interface DeskSize {
   width: number; // cm
   depth: number; // cm
+  material?: DeskMaterial; // 없으면 oak
+  lighting?: Lighting; // 없으면 day
 }
 
 export type NewDeskItem = Omit<DeskItem, "id" | "rotation"> & { rotation?: number };
@@ -121,6 +127,8 @@ interface DeskState {
   renameSetup: (id: string, name: string) => void;
   deleteSetup: (id: string) => void;
   setDeskSize: (width: number, depth: number) => void;
+  setDeskMaterial: (material: DeskMaterial) => void;
+  setLighting: (lighting: Lighting) => void;
   /** 추가된 아이템 id를 반환. 결합되면 결합된 호스트(모니터/노트북)의 id */
   addDeskItem: (item: NewDeskItem) => string;
   updateItemPosition: (id: string, x: number, y: number) => void;
@@ -324,11 +332,15 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   setDeskSize: (width, depth) =>
     set((s) => {
       const desk = {
+        ...s.desk, // 재질·조명 유지
         width: clamp(width, DESK_LIMITS.minW, DESK_LIMITS.maxW),
         depth: clamp(depth, DESK_LIMITS.minD, DESK_LIMITS.maxD),
       };
       return { desk, deskItems: s.deskItems.map((i) => fit(i, desk)) };
     }),
+
+  setDeskMaterial: (material) => set((s) => ({ desk: { ...s.desk, material } })),
+  setLighting: (lighting) => set((s) => ({ desk: { ...s.desk, lighting } })),
 
   addDeskItem: (item) => {
     const { desk, deskItems } = get();

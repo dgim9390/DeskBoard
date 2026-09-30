@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
-import { useDeskStore } from "@/store/useDeskStore";
+import { Ionicons } from "@expo/vector-icons";
+import { useDeskStore, type Lighting } from "@/store/useDeskStore";
 import { CenterGuides, useGuideState } from "./CenterGuides";
 import { DeskSurface } from "./DeskSurface";
 import { DraggableItem } from "./DraggableItem";
+import { LIGHTING, LightingOverlay } from "./LightingOverlay";
+
+const LIGHTING_ORDER: Lighting[] = ["day", "evening", "night"];
 
 const PAD = 30; // 캔버스 가장자리 여백 (치수 표시 공간)
 
@@ -15,6 +19,8 @@ interface Props {
 export function DeskCanvas({ selectedId, onSelect }: Props) {
   const desk = useDeskStore((s) => s.desk);
   const deskItems = useDeskStore((s) => s.deskItems);
+  const setLighting = useDeskStore((s) => s.setLighting);
+  const lighting = desk.lighting ?? "day";
   const [size, setSize] = useState({ width: 0, height: 0 });
   const guides = useGuideState();
 
@@ -28,7 +34,7 @@ export function DeskCanvas({ selectedId, onSelect }: Props) {
   const top = (size.height - dd) / 2;
 
   return (
-    <View onLayout={onLayout} className="flex-1 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+    <View onLayout={onLayout} className="flex-1 overflow-hidden rounded-2xl border border-zinc-800" style={{ backgroundColor: LIGHTING[lighting].room }}>
       {/* 바닥 탭 → 선택 해제 */}
       <Pressable style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} onPress={() => onSelect(null)} />
 
@@ -63,7 +69,7 @@ export function DeskCanvas({ selectedId, onSelect }: Props) {
               }}
             />
             <Pressable style={{ position: "absolute", left: 0, top: 0, width: dw, height: dd, borderRadius: 3, overflow: "hidden" }} onPress={() => onSelect(null)}>
-              <DeskSurface width={dw} height={dd} />
+              <DeskSurface width={dw} height={dd} material={desk.material} />
             </Pressable>
 
             {deskItems.length === 0 && (
@@ -90,12 +96,36 @@ export function DeskCanvas({ selectedId, onSelect }: Props) {
                 guides={guides}
               />
             ))}
+            {/* 조명 분위기: 제품 위(zIndex 1~100), 선택 핸들 아래(200) */}
+            <View pointerEvents="none" style={{ position: "absolute", left, top, width: dw, height: dd, zIndex: 150 }}>
+              <LightingOverlay items={deskItems} lighting={lighting} scale={scale} width={dw} height={dd} />
+            </View>
           </View>
 
           {/* 드래그 중에만 보이는 중앙 가이드 (제품 위에 표시, 터치 통과) */}
           <CenterGuides left={left} top={top} width={dw} height={dd} g={guides} />
         </>
       )}
+
+      {/* 조명 분위기 전환 (낮 · 저녁 · 밤) */}
+      <View className="absolute right-2 top-2 flex-row rounded-full border border-zinc-700/70 bg-black/50 p-0.5">
+        {LIGHTING_ORDER.map((l) => {
+          const on = l === lighting;
+          return (
+            <Pressable
+              key={l}
+              onPress={() => setLighting(l)}
+              accessibilityRole="button"
+              accessibilityLabel={`조명 ${LIGHTING[l].label}`}
+              accessibilityState={{ selected: on }}
+              hitSlop={4}
+              className={`h-7 w-7 items-center justify-center rounded-full ${on ? "bg-zinc-100" : ""}`}
+            >
+              <Ionicons name={LIGHTING[l].icon} size={15} color={on ? "#18181b" : "#d4d4d8"} />
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }

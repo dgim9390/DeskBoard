@@ -1,6 +1,7 @@
 import { View } from "react-native";
 import type { DeskItem, DeskSize } from "@/store/useDeskStore";
 import { DeskSurface } from "./DeskSurface";
+import { LightingOverlay } from "./LightingOverlay";
 import { DEFAULT_KIND, ProductImage } from "./ProductImage";
 
 /** 저장된 배치의 축소 미리보기 (터치 없음) */
@@ -9,7 +10,7 @@ export function SetupPreview({ desk, items, width }: { desk: DeskSize; items: De
   const height = desk.depth * scale;
   return (
     <View pointerEvents="none" style={{ width, height, borderRadius: 4, overflow: "hidden" }}>
-      <DeskSurface width={width} height={height} />
+      <DeskSurface width={width} height={height} material={desk.material} />
       {items.map((i) => (
         <View
           key={i.id}
@@ -35,6 +36,7 @@ export function SetupPreview({ desk, items, width }: { desk: DeskSize; items: De
           />
         </View>
       ))}
+      <LightingOverlay items={items} lighting={desk.lighting ?? "day"} scale={scale} width={width} height={height} />
     </View>
   );
 }
