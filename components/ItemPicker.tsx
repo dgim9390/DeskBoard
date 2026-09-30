@@ -99,7 +99,7 @@ export function ItemPicker({ onPick, onPickCustom, onAddLink, onRemoveCustom }: 
 
             {filter === "mine" && customProducts.length === 0 && (
               <View className="justify-center px-2">
-                <Text className="text-xs leading-5 text-zinc-500">쓰고 싶은 제품의 상품 페이지 링크를{"\n"}붙여 넣어 책상에 올려 보세요.</Text>
+                <Text className="text-xs leading-5 text-zinc-500">제조사 공식 홈페이지의 제품 링크를{"\n"}붙여 넣어 책상에 올려 보세요.</Text>
               </View>
             )}
           </>

@@ -76,7 +76,7 @@ async function fetchHtml(startUrl) {
         continue;
       }
       if (res.status === 401 || res.status === 403 || res.status === 429) {
-        throw new PreviewError("blocked_by_site", "이 쇼핑몰은 자동으로 정보를 읽는 걸 막고 있어요. 이름과 크기를 직접 입력해 주세요.", 422);
+        throw new PreviewError("blocked_by_site", "이 쇼핑몰은 자동으로 정보를 읽는 걸 막고 있어요. 제조사 공식 홈페이지의 제품 링크를 넣거나, 이름과 크기를 직접 입력해 주세요.", 422);
       }
       if (!res.ok) throw new PreviewError("fetch_failed", `페이지를 불러오지 못했어요 (${res.status}).`, 422);
       const type = res.headers.get("content-type") || "";

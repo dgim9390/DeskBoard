@@ -147,14 +147,22 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
           <Pressable className="max-h-full w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900" onPress={() => {}}>
             <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
               <Text className="text-lg font-bold text-white">링크로 제품 추가</Text>
-              <Text className="mt-1 text-sm text-zinc-400">쓰고 싶은 제품의 상품 페이지 링크를 붙여 넣으세요.</Text>
+              <Text className="mt-1 text-sm leading-5 text-zinc-400">
+                <Text className="font-semibold text-zinc-200">제조사 공식 홈페이지</Text>의 제품 페이지 링크를 붙여 넣으세요.
+              </Text>
+              <View className="mt-2 flex-row rounded-lg bg-zinc-950 px-3 py-2">
+                <Ionicons name="information-circle-outline" size={14} color="#a1a1aa" style={{ marginTop: 1 }} />
+                <Text className="ml-1.5 flex-1 text-xs leading-4 text-zinc-500">
+                  예) 로지텍·애플·키크론·BenQ 공식몰 ✅{"\n"}쿠팡·네이버 스마트스토어 같은 쇼핑몰은 정보를 막아 두어 불러오지 못할 수 있어요.
+                </Text>
+              </View>
 
               {/* 링크 입력 */}
               <View className="mt-4 flex-row items-center" style={{ gap: 8 }}>
                 <TextInput
                   value={url}
                   onChangeText={setUrl}
-                  placeholder="https://…"
+                  placeholder="https://www.logitech.com/…"
                   placeholderTextColor="#52525b"
                   autoCapitalize="none"
                   autoCorrect={false}

@@ -5,6 +5,7 @@ const { app, BrowserWindow, Menu, net, protocol, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
+const updater = require("./updater");
 
 const SCHEME = "app";
 const HOST = "deskterior";
@@ -16,16 +17,27 @@ protocol.registerSchemesAsPrivileged([
   { scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
 ]);
 
+const isFile = (f) => !!f && fs.existsSync(f) && fs.statSync(f).isFile();
+const serveFile = (f) => net.fetch(pathToFileURL(f).toString());
+
 function serveWebRoot() {
-  protocol.handle(SCHEME, (request) => {
+  protocol.handle(SCHEME, async (request) => {
     const { pathname } = new URL(request.url);
     const rel = decodeURIComponent(pathname).replace(/^\/+/, "");
-    const file = path.normalize(path.join(WEB_ROOT, rel));
-    // web/ 밖의 파일은 접근 금지
-    const inside = file.startsWith(WEB_ROOT + path.sep) || file === WEB_ROOT;
-    const exists = inside && fs.existsSync(file) && fs.statSync(file).isFile();
+    // 받아둔 최신 화면(있으면) → 앱에 들어 있는 화면 순서로 찾음. 각 폴더 밖 경로는 접근 금지
+    const live = updater.getLiveDir();
+    const roots = [live, WEB_ROOT].filter(Boolean);
+    if (rel) {
+      for (const root of roots) {
+        const file = updater.safeJoin(root, rel);
+        if (isFile(file)) return serveFile(file);
+      }
+      // 최신 화면이 나중에 부르는 정적 파일(아이콘·폰트 등)은 배포 주소에서 받아 저장
+      const fetched = await updater.fetchMissingAsset(rel);
+      if (fetched) return serveFile(fetched);
+    }
     // 없는 경로(/recommend 등)는 앱 화면(index.html)으로 → 앱 안에서 라우팅
-    return net.fetch(pathToFileURL(exists ? file : path.join(WEB_ROOT, "index.html")).toString());
+    return serveFile(path.join(live || WEB_ROOT, "index.html"));
   });
 }
 
@@ -61,7 +73,11 @@ function createWindow() {
     },
   });
 
-  win.once("ready-to-show", () => win.show());
+  win.once("ready-to-show", () => {
+    win.show();
+    // 창이 뜬 뒤 조용히 업데이트 확인 (새 것이 있을 때만 알림)
+    setTimeout(() => updater.checkForUpdates(win, WEB_ROOT), 3000);
+  });
   win.on("close", () => saveWindowState(win));
 
   // 새 창/외부 링크는 앱 안이 아니라 기본 브라우저로
@@ -83,7 +99,25 @@ function createWindow() {
 // macOS 기본 메뉴 (복사/붙여넣기, 새로고침, 창 닫기 등)
 function buildMenu() {
   const template = [
-    { role: "appMenu" },
+    {
+      label: app.name,
+      submenu: [
+        { role: "about", label: "Deskterior 정보" },
+        {
+          label: "업데이트 확인…",
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+            if (win) updater.checkForUpdates(win, WEB_ROOT, { manual: true });
+          },
+        },
+        { type: "separator" },
+        { role: "hide", label: "Deskterior 가리기" },
+        { role: "hideOthers", label: "기타 가리기" },
+        { role: "unhide", label: "모두 보기" },
+        { type: "separator" },
+        { role: "quit", label: "Deskterior 종료" },
+      ],
+    },
     { role: "editMenu" },
     {
       label: "보기",
@@ -95,6 +129,7 @@ function buildMenu() {
 }
 
 app.whenReady().then(() => {
+  updater.init();
   serveWebRoot();
   buildMenu();
   createWindow();
