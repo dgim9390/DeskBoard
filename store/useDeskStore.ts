@@ -102,6 +102,12 @@ export interface SavedSetup {
   items: DeskItem[];
 }
 
+/** 되돌리기 기록 한 칸: 책상과 그 위 제품 */
+export interface Layout {
+  desk: DeskSize;
+  deskItems: DeskItem[];
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -147,6 +153,15 @@ interface DeskState {
   customProducts: CustomProduct[];
   addCustomProduct: (p: Omit<CustomProduct, "id" | "createdAt">) => CustomProduct;
   removeCustomProduct: (id: string) => void;
+  /** 되돌리기 / 다시하기 (기기에 저장하지 않음) */
+  past: Layout[];
+  future: Layout[];
+  undo: () => void;
+  redo: () => void;
+  /** 같은 제품을 살짝 옆에 하나 더 놓고 새 id 반환 */
+  duplicateItem: (id: string) => string | null;
+  /** 템플릿(추천 셋업)으로 책상 전체를 바꿈. 제품 id는 새로 만듦 */
+  applyTemplate: (layout: { desk: DeskSize; items: Omit<DeskItem, "id">[] }) => void;
 }
 
 // ── 결합 규칙 ────────────────────────────────────────────
@@ -438,7 +453,90 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
     return product;
   },
   removeCustomProduct: (id) => set((s) => ({ customProducts: s.customProducts.filter((x) => x.id !== id) })),
+
+  past: [],
+  future: [],
+  undo: () => {
+    const { past, future, desk, deskItems } = get();
+    const prev = past[past.length - 1];
+    if (!prev) return;
+    history.lastKey = null;
+    set({ desk: prev.desk, deskItems: prev.deskItems, past: past.slice(0, -1), future: [{ desk, deskItems }, ...future].slice(0, HISTORY_LIMIT) });
+  },
+  redo: () => {
+    const { past, future, desk, deskItems } = get();
+    const next = future[0];
+    if (!next) return;
+    history.lastKey = null;
+    set({ desk: next.desk, deskItems: next.deskItems, future: future.slice(1), past: [...past, { desk, deskItems }].slice(-HISTORY_LIMIT) });
+  },
+
+  duplicateItem: (id) => {
+    const { desk, deskItems } = get();
+    const src = deskItems.find((i) => i.id === id);
+    if (!src) return null;
+    const copy = fit({ ...src, id: makeId(), x: src.x + 4, y: src.y + 4 }, desk);
+    // 원본 바로 위에 그려지도록 원본 다음 순서에 넣음
+    const idx = deskItems.findIndex((i) => i.id === id);
+    set({ deskItems: [...deskItems.slice(0, idx + 1), copy, ...deskItems.slice(idx + 1)] });
+    return copy.id;
+  },
+
+  applyTemplate: ({ desk, items }) =>
+    set({ desk: { ...desk }, deskItems: items.map((i) => fit({ ...i, id: makeId() }, desk)), activeSetupId: null }),
 }));
+
+// ── 되돌리기 기록 ─────────────────────────────────────────
+const HISTORY_LIMIT = 50;
+const history = { lastKey: null as string | null, lastTime: 0 };
+
+/** 책상·제품을 바꾸는 동작. 실행 전 상태를 기록해 두고, 실제로 바뀐 경우에만 되돌리기 목록에 넣음 */
+type Tracked =
+  | "setDeskSize" | "setDeskMaterial" | "setLighting" | "addDeskItem" | "updateItemPosition" | "updateItemSize"
+  | "updateItemRotation" | "updateItemTransform" | "setItemColor" | "detachMount" | "mountNearest" | "reorder"
+  | "removeItem" | "clearDesk" | "loadSetup" | "duplicateItem" | "applyTemplate";
+
+/** 연속 입력(크기 타이핑, 화살표 이동 등)은 1초 안이면 한 단계로 묶음 */
+const COALESCE: Partial<Record<Tracked, (args: unknown[]) => string>> = {
+  setDeskSize: () => "desk-size",
+  updateItemSize: (a) => `size:${a[0]}`,
+  updateItemPosition: (a) => `move:${a[0]}`,
+};
+
+function trackHistory() {
+  const st = useDeskStore.getState();
+  const names: Tracked[] = [
+    "setDeskSize", "setDeskMaterial", "setLighting", "addDeskItem", "updateItemPosition", "updateItemSize",
+    "updateItemRotation", "updateItemTransform", "setItemColor", "detachMount", "mountNearest", "reorder",
+    "removeItem", "clearDesk", "loadSetup", "duplicateItem", "applyTemplate",
+  ];
+  const wrapped: Partial<DeskState> = {};
+  for (const name of names) {
+    const original = st[name] as (...args: unknown[]) => unknown;
+    (wrapped as Record<string, unknown>)[name] = (...args: unknown[]) => {
+      const before: Layout = { desk: useDeskStore.getState().desk, deskItems: useDeskStore.getState().deskItems };
+      const result = original(...args);
+      const after = useDeskStore.getState();
+      const changed =
+        (after.desk !== before.desk || after.deskItems !== before.deskItems) &&
+        JSON.stringify([after.desk, after.deskItems]) !== JSON.stringify([before.desk, before.deskItems]);
+      if (!changed) return result;
+      const key = COALESCE[name]?.(args) ?? null;
+      const now = Date.now();
+      if (key && key === history.lastKey && now - history.lastTime < 1000) {
+        history.lastTime = now; // 같은 묶음: 처음 상태만 기록되어 있으면 충분
+        if (after.future.length) useDeskStore.setState({ future: [] });
+        return result;
+      }
+      history.lastKey = key;
+      history.lastTime = now;
+      useDeskStore.setState({ past: [...after.past, before].slice(-HISTORY_LIMIT), future: [] });
+      return result;
+    };
+  }
+  useDeskStore.setState(wrapped);
+}
+trackHistory();
 
 // ── 계정(Supabase) 동기화 ─────────────────────────────────
 const errText = (e: unknown) => (e instanceof Error ? e.message : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e));

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { FlatList, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { ProductCard } from "@/components/ProductCard";
+import { TemplateGallery } from "@/components/TemplateGallery";
 import { suggestPosition } from "@/lib/placement";
 import { getRecommendations, SECTION_LABEL, type Product, type Section } from "@/lib/recommend";
 import { useDeskStore } from "@/store/useDeskStore";
@@ -61,9 +62,13 @@ export default function RecommendScreen() {
         keyExtractor={(p) => p.id}
         contentContainerStyle={{ padding: 16, gap: 12 }}
         ListHeaderComponent={
-          <Text className="mb-1 text-sm text-zinc-400">
-            현재 책상의 {deskItems.length}개 장비에 맞춘 추천과 데스크테리어 인기 아이템이에요.
-          </Text>
+          <View>
+            {filter === "all" && <TemplateGallery />}
+            <Text className="px-1 text-base font-bold text-zinc-100">추천 제품</Text>
+            <Text className="mb-1 mt-0.5 px-1 text-xs text-zinc-500">
+              현재 책상의 {deskItems.length}개 장비에 맞춘 추천과 데스크테리어 인기 아이템이에요.
+            </Text>
+          </View>
         }
         ListEmptyComponent={
           <View className="items-center py-20">

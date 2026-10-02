@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SetupPreview } from "@/components/SetupPreview";
 import { CATEGORY_COLOR, CATEGORY_LABEL } from "@/data/catalog";
 import { confirm } from "@/lib/confirm";
+import { eulReul } from "@/lib/josa";
 import { defaultColor, sameLayout, useDeskStore, type SavedSetup } from "@/store/useDeskStore";
 
 const fmtDate = (t: number) => {
@@ -50,7 +51,7 @@ export default function SetupScreen() {
       loadSetup(x.id);
       router.navigate("/");
     };
-    if (hasUnsaved) confirm("셋업 불러오기", `저장하지 않은 현재 배치는 사라져요. '${x.name}'을(를) 불러올까요?`, "불러오기", go);
+    if (hasUnsaved) confirm("셋업 불러오기", `저장하지 않은 현재 배치는 사라져요. ${eulReul(`'${x.name}'`)} 불러올까요?`, "불러오기", go);
     else go();
   };
 
@@ -173,10 +174,10 @@ export default function SetupScreen() {
               <Btn
                 icon="refresh"
                 label="덮어쓰기"
-                onPress={() => confirm("덮어쓰기", `'${x.name}'을(를) 현재 배치로 바꿀까요?`, "덮어쓰기", () => overwriteSetup(x.id))}
+                onPress={() => confirm("덮어쓰기", `${eulReul(`'${x.name}'`)} 현재 배치로 바꿀까요?`, "덮어쓰기", () => overwriteSetup(x.id))}
               />
               <View className="flex-1" />
-              <Btn icon="trash-outline" label="삭제" tone="danger" onPress={() => confirm("셋업 삭제", `'${x.name}'을(를) 삭제할까요?`, "삭제", () => deleteSetup(x.id), true)} />
+              <Btn icon="trash-outline" label="삭제" tone="danger" onPress={() => confirm("셋업 삭제", `${eulReul(`'${x.name}'`)} 삭제할까요?`, "삭제", () => deleteSetup(x.id), true)} />
             </View>
           </View>
         );

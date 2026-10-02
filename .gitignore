@@ -41,3 +41,6 @@ desktop/node_modules/
 desktop/web/
 desktop/release/
 desktop/smoke.png
+
+# 로컬 개발 도구 설정
+.claude/

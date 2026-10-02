@@ -96,6 +96,24 @@ function createWindow() {
   return win;
 }
 
+// 편집 → 실행 취소/복귀: 입력창에 포커스가 있으면 글자 되돌리기, 아니면 책상 배치 되돌리기
+function sendHistory(win, action) {
+  const wc = win && win.webContents;
+  if (!wc) return;
+  wc.executeJavaScript(
+    `(() => {
+      const el = document.activeElement;
+      const typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if (!typing) window.dispatchEvent(new Event("deskterior:${action}"));
+      return typing;
+    })()`,
+  )
+    .then((typing) => {
+      if (typing) action === "undo" ? wc.undo() : wc.redo();
+    })
+    .catch(() => {});
+}
+
 // macOS 기본 메뉴 (복사/붙여넣기, 새로고침, 창 닫기 등)
 function buildMenu() {
   const template = [
@@ -118,7 +136,19 @@ function buildMenu() {
         { role: "quit", label: "Deskterior 종료" },
       ],
     },
-    { role: "editMenu" },
+    {
+      label: "편집",
+      submenu: [
+        // 메뉴 단축키가 키 입력을 먼저 가져가므로, 글자 입력 중이 아니면 책상 되돌리기로 보냄
+        { label: "실행 취소", accelerator: "CmdOrCtrl+Z", click: (_item, win) => sendHistory(win, "undo") },
+        { label: "실행 복귀", accelerator: "Shift+CmdOrCtrl+Z", click: (_item, win) => sendHistory(win, "redo") },
+        { type: "separator" },
+        { role: "cut", label: "오려두기" },
+        { role: "copy", label: "복사하기" },
+        { role: "paste", label: "붙여넣기" },
+        { role: "selectAll", label: "전체 선택" },
+      ],
+    },
     {
       label: "보기",
       submenu: [{ role: "reload", label: "새로고침" }, { role: "togglefullscreen", label: "전체 화면" }, { type: "separator" }, { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" }],

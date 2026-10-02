@@ -26,18 +26,19 @@ function Chip({ icon, label, onPress, disabled }: { icon: React.ComponentProps<t
 
 interface Props {
   item: DeskItem;
-  onDeleted: () => void;
+  /** 삭제 (되돌리기 알림은 부모가) */
+  onDelete: () => void;
+  onDuplicate: () => void;
   /** 결합으로 선택 대상 id가 바뀔 때 */
   onSelect: (id: string) => void;
 }
 
 /** 선택한 장비의 색상 / 크기(cm) 입력 / 회전 / 삭제 / 앞뒤 배치 / 결합·분리 */
-export function SelectedBar({ item, onDeleted, onSelect }: Props) {
+export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
   const updateItemSize = useDeskStore((s) => s.updateItemSize);
   const updateItemRotation = useDeskStore((s) => s.updateItemRotation);
   const setItemColor = useDeskStore((s) => s.setItemColor);
   const detachMount = useDeskStore((s) => s.detachMount);
-  const removeItem = useDeskStore((s) => s.removeItem);
   const mountNearest = useDeskStore((s) => s.mountNearest);
   const reorder = useDeskStore((s) => s.reorder);
   const deskItems = useDeskStore((s) => s.deskItems);
@@ -100,10 +101,7 @@ export function SelectedBar({ item, onDeleted, onSelect }: Props) {
           <Ionicons name="refresh" size={18} color="white" />
         </Pressable>
         <Pressable
-          onPress={() => {
-            removeItem(item.id);
-            onDeleted();
-          }}
+          onPress={onDelete}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="삭제"
@@ -114,6 +112,7 @@ export function SelectedBar({ item, onDeleted, onSelect }: Props) {
       </View>
 
       <View className="mt-2 flex-row items-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
+        <Chip icon="copy-outline" label="복제" onPress={onDuplicate} />
         <Chip icon="arrow-down" label="뒤로" onPress={() => reorder(item.id, "backward")} disabled={!canBackward} />
         <Chip icon="arrow-up" label="앞으로" onPress={() => reorder(item.id, "forward")} disabled={!canForward} />
         {item.mount ? (

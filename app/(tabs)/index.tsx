@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { DeskBar } from "@/components/DeskBar";
@@ -10,7 +10,9 @@ import { ItemPicker } from "@/components/ItemPicker";
 import { SaveSetupModal } from "@/components/SaveSetupModal";
 import { SelectedBar } from "@/components/SelectedBar";
 import type { CATALOG } from "@/data/catalog";
+import { eulReul } from "@/lib/josa";
 import { suggestPosition } from "@/lib/placement";
+import { toast } from "@/lib/toast";
 import { useDeskStore, type CustomProduct } from "@/store/useDeskStore";
 
 export default function SimulatorScreen() {
@@ -31,19 +33,6 @@ export default function SimulatorScreen() {
     navigation.setOptions({
       headerRight: () => (
         <View className="mr-4 flex-row items-center" style={{ gap: 8 }}>
-          {/* 책상 비우기: 잘못 누를 수 있어 확인 창을 거침 */}
-          <Pressable
-            onPress={() => setClearOpen(true)}
-            disabled={itemCount === 0}
-            accessibilityRole="button"
-            accessibilityLabel="책상 비우기"
-            accessibilityState={{ disabled: itemCount === 0 }}
-            hitSlop={8}
-            className={`flex-row items-center rounded-lg border border-zinc-700 px-3 py-1.5 ${itemCount === 0 ? "opacity-35" : "active:bg-zinc-800"}`}
-          >
-            <Ionicons name="trash-outline" size={15} color="#f87171" />
-            <Text className="ml-1 text-sm font-semibold text-red-400">비우기</Text>
-          </Pressable>
           <Pressable
           onPress={() => setSaveOpen(true)}
           accessibilityRole="button"
@@ -57,7 +46,7 @@ export default function SimulatorScreen() {
         </View>
       ),
     });
-  }, [navigation, justSaved, itemCount]);
+  }, [navigation, justSaved]);
 
   // "저장됨" 표시는 잠깐만
   useEffect(() => {
@@ -65,6 +54,75 @@ export default function SimulatorScreen() {
     const t = setTimeout(() => setJustSaved(false), 1500);
     return () => clearTimeout(t);
   }, [justSaved]);
+
+  // ── 되돌리기 알림 ──
+  const undoToast = (text: string, icon: string) => toast(text, { icon, action: { label: "되돌리기", onPress: () => useDeskStore.getState().undo() } });
+
+  const duplicate = useCallback((id: string) => {
+    const newId = useDeskStore.getState().duplicateItem(id);
+    if (newId) {
+      setSelectedId(newId);
+      toast("복제했어요", { icon: "copy-outline" });
+    }
+  }, []);
+
+  const remove = useCallback((id: string) => {
+    const item = useDeskStore.getState().deskItems.find((i) => i.id === id);
+    useDeskStore.getState().removeItem(id);
+    setSelectedId(null);
+    if (item) undoToast(`${eulReul(`'${item.name}'`)} 지웠어요`, "trash-outline");
+  }, []);
+
+  // ── 단축키 (웹·맥 앱) ──
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return; // 입력 중엔 무시
+      const mod = e.metaKey || e.ctrlKey;
+      const st = useDeskStore.getState();
+      const key = e.key.toLowerCase();
+      if (mod && key === "z") {
+        e.preventDefault();
+        if (e.shiftKey) st.redo();
+        else st.undo();
+      } else if (mod && key === "y") {
+        e.preventDefault();
+        st.redo();
+      } else if (mod && key === "s") {
+        e.preventDefault();
+        setSaveOpen(true);
+      } else if (mod && key === "d" && selectedId) {
+        e.preventDefault();
+        duplicate(selectedId);
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
+        e.preventDefault();
+        remove(selectedId);
+      } else if (e.key === "Escape") {
+        setSelectedId(null);
+      } else if (selectedId && e.key.startsWith("Arrow")) {
+        // 화살표: 1cm, Shift+화살표: 5cm
+        const item = st.deskItems.find((i) => i.id === selectedId);
+        if (!item) return;
+        e.preventDefault();
+        const step = e.shiftKey ? 5 : 1;
+        const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+        st.updateItemPosition(item.id, item.x + dx, item.y + dy);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    // 맥 앱 메뉴(편집 → 실행 취소/복귀)에서 보내는 신호
+    const onUndo = () => useDeskStore.getState().undo();
+    const onRedo = () => useDeskStore.getState().redo();
+    window.addEventListener("deskterior:undo", onUndo);
+    window.addEventListener("deskterior:redo", onRedo);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("deskterior:undo", onUndo);
+      window.removeEventListener("deskterior:redo", onRedo);
+    };
+  }, [selectedId, duplicate, remove]);
 
   const handlePick = useCallback(
     ({ key: _key, group: _group, ...entry }: (typeof CATALOG)[number]) => {
@@ -109,11 +167,15 @@ export default function SimulatorScreen() {
     <View className="flex-1 bg-zinc-950 px-3 pb-3 pt-2">
       {/* 상단: 캔버스 (남는 공간 전부) */}
       <View style={{ flex: 1 }}>
-        <DeskCanvas selectedId={selectedId} onSelect={setSelectedId} />
+        <DeskCanvas selectedId={selectedId} onSelect={setSelectedId} onRequestClear={() => setClearOpen(true)} />
       </View>
       {/* 하단: 선택/책상 바 + 장비 리스트 (내용 높이만큼) */}
       <View className="pt-3">
-        {selectedItem ? <SelectedBar item={selectedItem} onDeleted={() => setSelectedId(null)} onSelect={setSelectedId} /> : <DeskBar />}
+        {selectedItem ? (
+          <SelectedBar item={selectedItem} onDelete={() => remove(selectedItem.id)} onDuplicate={() => duplicate(selectedItem.id)} onSelect={setSelectedId} />
+        ) : (
+          <DeskBar />
+        )}
         <ItemPicker onPick={handlePick} onPickCustom={placeCustom} onAddLink={() => setLinkOpen(true)} onRemoveCustom={setRemoving} />
       </View>
 
@@ -130,7 +192,7 @@ export default function SimulatorScreen() {
       <ConfirmModal
         visible={removing !== null}
         title="내 제품에서 삭제"
-        message={`'${removing?.name ?? ""}'을(를) 내 제품 목록에서 지울까요? 이미 책상에 놓인 제품은 그대로 남아요.`}
+        message={`${eulReul(`'${removing?.name ?? ""}'`)} 내 제품 목록에서 지울까요? 이미 책상에 놓인 제품은 그대로 남아요.`}
         confirmLabel="삭제"
         destructive
         onCancel={() => setRemoving(null)}
@@ -143,7 +205,7 @@ export default function SimulatorScreen() {
       <ConfirmModal
         visible={clearOpen}
         title="책상 비우기"
-        message={`책상 위 장비 ${itemCount}개를 모두 지울까요? 저장하지 않은 배치는 되돌릴 수 없어요.`}
+        message={`책상 위 장비 ${itemCount}개를 모두 지울까요? 바로 뒤에 되돌리기로 복구할 수 있어요.`}
         confirmLabel="비우기"
         destructive
         onCancel={() => setClearOpen(false)}
@@ -151,6 +213,7 @@ export default function SimulatorScreen() {
           clearDesk();
           setSelectedId(null);
           setClearOpen(false);
+          undoToast("책상을 비웠어요", "trash-outline");
         }}
       />
 
