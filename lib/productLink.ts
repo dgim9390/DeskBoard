@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { CATALOG } from "@/data/catalog";
+import { parse } from "@/lib/productParse";
 import type { Category, ProductKind } from "@/store/useDeskStore";
 
 /** 제품 링크 미리보기 결과 (api/product-preview.js 응답) */
@@ -7,6 +8,8 @@ export interface ProductPreview {
   url: string;
   title: string | null;
   image: string | null;
+  /** 페이지 안의 사진 후보 (대표 사진 포함). 예전 서버 응답에는 없음 */
+  images?: string[];
   siteName: string;
   brand: string | null;
   price: number | null;
@@ -27,17 +30,76 @@ function apiBase() {
   return DEPLOYED;
 }
 
-export async function fetchProductPreview(url: string): Promise<ProductPreview> {
-  const endpoint = `${apiBase()}/api/product-preview?url=${encodeURIComponent(url.trim())}`;
+/** 다른 사이트 사진을 링크 읽기 서버를 거쳐 받는 주소 (배경 지우기에 필요한 픽셀 읽기용) */
+export const imageProxyUrl = (url: string) => `${apiBase()}/api/image-proxy?url=${encodeURIComponent(url)}`;
+
+/** 서버 접속을 막는 쇼핑몰. 맥 앱에서는 앱이 직접 페이지를 열어 읽음 */
+const SERVER_BLOCKED = /(^|\.)(coupang\.com|coupa\.ng)$/i;
+
+/** 맥 앱(Electron)이 제공하는 페이지 읽기. 웹 브라우저에서는 없음 */
+type PageReader = (url: string) => Promise<{ html: string; finalUrl: string }>;
+const pageReader = (): PageReader | undefined =>
+  Platform.OS === "web" && typeof window !== "undefined" ? (window as unknown as { deskterior?: { readPage?: PageReader } }).deskterior?.readPage : undefined;
+
+/** 서버가 막힌 쇼핑몰(쿠팡 등)도 읽을 수 있는지 = 맥 앱(1.2 이상) */
+export const canReadBlockedSites = () => !!pageReader();
+
+class PreviewError extends Error {
+  constructor(
+    message: string,
+    public code?: string,
+  ) {
+    super(message);
+  }
+}
+
+async function fromServer(url: string): Promise<ProductPreview> {
   let res: Response;
   try {
-    res = await fetch(endpoint);
+    res = await fetch(`${apiBase()}/api/product-preview?url=${encodeURIComponent(url)}`);
   } catch {
-    throw new Error("링크 읽기 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.");
+    throw new PreviewError("링크 읽기 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.", "network");
   }
   const body = await res.json().catch(() => null);
-  if (!res.ok || !body) throw new Error(body?.message ?? `정보를 불러오지 못했어요 (${res.status}).`);
+  if (!res.ok || !body) throw new PreviewError(body?.message ?? `정보를 불러오지 못했어요 (${res.status}).`, body?.error);
   return body as ProductPreview;
+}
+
+async function fromApp(read: PageReader, url: string): Promise<ProductPreview> {
+  let page: { html: string; finalUrl: string };
+  try {
+    page = await read(url);
+  } catch (e) {
+    // "Error invoking remote method '…': Error: 메시지" → 메시지만
+    const msg = (e instanceof Error ? e.message : String(e)).replace(/^.*Error:\s*/, "");
+    throw new PreviewError(msg || "페이지를 불러오지 못했어요.");
+  }
+  const data = parse(page.html, page.finalUrl);
+  if (!data.title && !data.image) throw new PreviewError("이 페이지에서 제품 정보를 찾지 못했어요. 직접 입력해 주세요.");
+  return data;
+}
+
+export async function fetchProductPreview(rawUrl: string): Promise<ProductPreview> {
+  const url = rawUrl.trim();
+  const host = new URL(url).hostname;
+  const read = pageReader();
+  if (SERVER_BLOCKED.test(host)) {
+    if (read) return fromApp(read, url);
+    // 예전 맥 앱(1.1.x)은 화면만 자동 업데이트되고 페이지 읽기 기능이 없음
+    if (typeof navigator !== "undefined" && /Electron/.test(navigator.userAgent)) {
+      throw new PreviewError("쿠팡 링크는 맥 앱 1.2부터 불러올 수 있어요. GitHub에서 새 버전(.dmg)을 받아 덮어 설치해 주세요. 지금은 아래에서 직접 입력할 수 있어요.");
+    }
+    throw new PreviewError(
+      "쿠팡 링크는 맥 앱(1.2 이상)에서 바로 불러올 수 있어요. 웹에서는 아래에 이름·크기를 직접 입력하고, 상품 사진은 저장해서 '사진 올리기'로 넣어 주세요.",
+    );
+  }
+  try {
+    return await fromServer(url);
+  } catch (e) {
+    // 서버가 막힌 사이트는 맥 앱이 직접 열어 한 번 더 시도
+    if (read && e instanceof PreviewError && ["blocked_by_site", "fetch_failed", "timeout"].includes(e.code ?? "")) return fromApp(read, url);
+    throw e;
+  }
 }
 
 /** 링크처럼 보이는지 (앞뒤 공백 허용, http 생략 시 붙여줌) */

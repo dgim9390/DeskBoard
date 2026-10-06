@@ -1,0 +1,413 @@
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { imageProxyUrl } from "@/lib/productLink";
+import type { DeskItem, DeskMaterial, DeskSize, Lighting } from "@/store/useDeskStore";
+import { buildItem, monitorTop, SUPPORT_TOP, type MatOpts, type ModelCtx } from "./models";
+import { clockTexture, deskTexture, floorTexture, labelTexture, screenTexture } from "./textures";
+
+/**
+ * 책상 3D 보기 (three.js, 웹·맥 앱 전용).
+ * 단위 cm. 책상 윗면 가운데가 원점, 오른쪽 +x, 위 +y, 사용자 쪽(2D 화면 아래) +z.
+ * 2D 배치를 그대로 옮겨 그리기만 하고(보기 전용), 클릭하면 그 제품을 선택한다.
+ */
+
+const DESK_THICK = 3;
+const DESK_H = 73; // 바닥에서 상판 윗면까지
+
+const MOOD: Record<Lighting, { bg: string; wall: string; floor: number; hemi: [string, string, number]; sun?: { color: string; power: number; pos: [number, number, number] }; exposure: number; screen: number }> = {
+  day: { bg: "#202024", wall: "#cfcac2", floor: 1, hemi: ["#ffffff", "#5b544c", 1.25], sun: { color: "#ffffff", power: 2.4, pos: [-0.5, 1.6, 1.1] }, exposure: 1, screen: 0.55 },
+  evening: { bg: "#160f0c", wall: "#b59c88", floor: 0.8, hemi: ["#ffd9b8", "#3a281c", 0.8], sun: { color: "#ffb27a", power: 1.7, pos: [1.1, 0.8, 0.9] }, exposure: 1.05, screen: 0.8 },
+  night: { bg: "#06070b", wall: "#6a6f80", floor: 0.55, hemi: ["#5a6a9c", "#0a0a10", 0.26], exposure: 1.2, screen: 1 },
+};
+
+export interface Desk3DState {
+  desk: DeskSize;
+  items: DeskItem[];
+  selectedId: string | null;
+}
+
+export interface Desk3D {
+  update(state: Desk3DState): void;
+  resetView(): void;
+  dispose(): void;
+}
+
+/** 회전한 제품의 책상 위 중심 좌표 (3D) */
+const center = (i: DeskItem, desk: DeskSize) => ({ x: i.x + i.width / 2 - desk.width / 2, z: i.y + i.height / 2 - desk.depth / 2 });
+
+/** 점 (px, pz)가 제품 i의 회전된 사각형 안에 있는지 */
+function contains(i: DeskItem, desk: DeskSize, px: number, pz: number) {
+  const c = center(i, desk);
+  const r = (-i.rotation * Math.PI) / 180;
+  const dx = px - c.x;
+  const dz = pz - c.z;
+  const lx = dx * Math.cos(r) - dz * Math.sin(r);
+  const lz = dx * Math.sin(r) + dz * Math.cos(r);
+  return Math.abs(lx) <= i.width / 2 && Math.abs(lz) <= i.height / 2;
+}
+
+export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: string | null) => void }): Desk3D {
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); // 이미지 저장용으로 그림 유지
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  const el = renderer.domElement;
+  el.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none";
+  container.appendChild(el);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, 1, 1, 6000);
+  const controls = new OrbitControls(camera, el);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.09;
+  controls.maxPolarAngle = Math.PI * 0.47; // 책상 밑으로 내려가지 않게
+  controls.minDistance = 35;
+  controls.screenSpacePanning = true;
+
+  // ── 공용 자원 (다시 그릴 때도 재사용) ──
+  const matCache = new Map<string, THREE.Material>();
+  const mat = (color: string, o: MatOpts = {}) => {
+    const key = `${color}|${o.rough}|${o.metal}|${o.emissive}|${o.emissiveIntensity}|${o.side}`;
+    let m = matCache.get(key);
+    if (!m) {
+      m = new THREE.MeshStandardMaterial({
+        color,
+        roughness: o.rough ?? 0.6,
+        metalness: o.metal ?? 0,
+        emissive: o.emissive ?? "#000000",
+        emissiveIntensity: o.emissiveIntensity ?? 1,
+        side: o.side ?? THREE.FrontSide,
+      });
+      m.userData.cached = true;
+      matCache.set(key, m);
+    }
+    return m;
+  };
+  const screenTex = screenTexture();
+  const screenMat = new THREE.MeshStandardMaterial({ color: "#050507", emissive: "#ffffff", emissiveMap: screenTex, roughness: 0.25, metalness: 0.1 });
+  screenMat.userData.cached = true;
+  const clockMat = new THREE.MeshBasicMaterial({ map: clockTexture() });
+  clockMat.userData.cached = true;
+  const labelCache = new Map<string, THREE.Material>();
+  const photoCache = new Map<string, Promise<THREE.Texture | null>>();
+  const loader = new THREE.TextureLoader();
+  loader.setCrossOrigin("anonymous");
+  let disposed = false;
+  let dirty = true;
+
+  const loadPhoto = (url: string) => {
+    let p = photoCache.get(url);
+    if (!p) {
+      // 다른 사이트 사진은 CORS 때문에 링크 읽기 서버를 거쳐 받음
+      const src = url.startsWith("data:") ? url : imageProxyUrl(url);
+      p = loader
+        .loadAsync(src)
+        .then((t) => {
+          t.colorSpace = THREE.SRGBColorSpace;
+          t.anisotropy = 8;
+          t.userData.shared = true; // 여러 번 다시 그려도 캐시에서 재사용
+          return t;
+        })
+        .catch(() => null);
+      photoCache.set(url, p);
+    }
+    return p;
+  };
+
+  // ── 방: 바닥·벽·책상 ──
+  const room = new THREE.Group();
+  const itemsGroup = new THREE.Group();
+  const lights = new THREE.Group();
+  scene.add(room, itemsGroup, lights);
+  let selection: THREE.BoxHelper | null = null;
+
+  const floorTex = floorTexture();
+  const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.85 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -DESK_H;
+  floor.receiveShadow = true;
+  floorTex.repeat.set(6, 6);
+  const wallMat = new THREE.MeshStandardMaterial({ color: "#cfcac2", roughness: 0.95 });
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(1200, 400), wallMat);
+  wall.receiveShadow = true;
+  room.add(floor, wall);
+
+  let deskKey = "";
+  let deskTop: THREE.Mesh | null = null;
+  const deskParts = new THREE.Group();
+  room.add(deskParts);
+
+  function buildDesk(desk: DeskSize) {
+    const key = `${desk.width}x${desk.depth}|${desk.material ?? "oak"}`;
+    if (key === deskKey) return;
+    deskKey = key;
+    disposeTree(deskParts);
+    deskParts.clear();
+    const tex = deskTexture((desk.material ?? "oak") as DeskMaterial);
+    const topMat = new THREE.MeshStandardMaterial({ map: tex.map, roughness: 0.62 - tex.sheen * 0.4, metalness: 0 });
+    const edgeMat = new THREE.MeshStandardMaterial({ color: tex.edge, roughness: 0.7 });
+    deskTop = new THREE.Mesh(new THREE.BoxGeometry(desk.width, DESK_THICK, desk.depth), [edgeMat, edgeMat, topMat, edgeMat, edgeMat, edgeMat]);
+    deskTop.position.y = -DESK_THICK / 2;
+    deskTop.castShadow = deskTop.receiveShadow = true;
+    deskParts.add(deskTop);
+    // 다리와 프레임 (검은 금속)
+    const legMat = mat("#1b1b1e", { rough: 0.4, metal: 0.7 });
+    const legH = DESK_H - DESK_THICK;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(4.5, legH, 4.5), legMat);
+        leg.position.set(sx * (desk.width / 2 - 5), -DESK_THICK - legH / 2, sz * (desk.depth / 2 - 5));
+        leg.castShadow = leg.receiveShadow = true;
+        deskParts.add(leg);
+      }
+    }
+    const apron = new THREE.Mesh(new THREE.BoxGeometry(desk.width - 10, 6, 2), legMat);
+    apron.position.set(0, -DESK_THICK - 3, -desk.depth / 2 + 6);
+    deskParts.add(apron);
+    wall.position.set(0, 200 - DESK_H, -desk.depth / 2 - 8);
+  }
+
+  // ── 조명 ──
+  let moodKey: Lighting | null = null;
+  const hemi = new THREE.HemisphereLight();
+  const sun = new THREE.DirectionalLight();
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.6;
+  sun.shadow.radius = 4;
+  scene.add(hemi, sun, sun.target);
+
+  function applyMood(lighting: Lighting, desk: DeskSize) {
+    const m = MOOD[lighting];
+    scene.background = new THREE.Color(m.bg);
+    scene.fog = new THREE.Fog(m.bg, 500, 1400);
+    renderer.toneMappingExposure = m.exposure;
+    hemi.color.set(m.hemi[0]);
+    hemi.groundColor.set(m.hemi[1]);
+    hemi.intensity = m.hemi[2];
+    wallMat.color.set(m.wall);
+    floorMat.color.setScalar(m.floor);
+    screenMat.emissiveIntensity = m.screen;
+    const span = Math.max(desk.width, desk.depth) / 2 + 60;
+    sun.visible = !!m.sun;
+    if (m.sun) {
+      sun.color.set(m.sun.color);
+      sun.intensity = m.sun.power;
+      sun.position.set(m.sun.pos[0] * 150, m.sun.pos[1] * 150, m.sun.pos[2] * 150);
+      const cam = sun.shadow.camera;
+      cam.left = cam.bottom = -span;
+      cam.right = cam.top = span;
+      cam.near = 10;
+      cam.far = 800;
+      cam.updateProjectionMatrix();
+    }
+  }
+
+  // ── 카메라: 의자에 앉은 눈높이에서 책상 전체가 보이게 ──
+  let lastDesk: DeskSize | null = null;
+  function resetView() {
+    if (!lastDesk) return;
+    // 가로는 책상 폭, 세로는 모니터 높이까지(약 60cm) 들어오는 거리 중 먼 쪽
+    const tanV = Math.tan((camera.fov * Math.PI) / 360);
+    const tanH = tanV * (camera.aspect || 1.5);
+    const dist = Math.max((lastDesk.width * 0.56) / tanH, 62 / tanV);
+    camera.position.set(0, dist * 0.5, dist * 0.87);
+    controls.target.set(0, 10, -lastDesk.depth * 0.05);
+    controls.maxDistance = dist * 2.5;
+    controls.update();
+    dirty = true;
+  }
+
+  // ── 제품 다시 그리기 ──
+  let itemsKey = "";
+  let selectedId: string | null = null;
+  const itemObjects = new Map<string, THREE.Object3D>();
+
+  function buildItems(desk: DeskSize, items: DeskItem[], lighting: Lighting) {
+    const key = JSON.stringify([desk.width, desk.depth, lighting, items]);
+    if (key === itemsKey) return;
+    itemsKey = key;
+    disposeTree(itemsGroup);
+    itemsGroup.clear();
+    itemObjects.clear();
+
+    const ctx: ModelCtx = {
+      lighting,
+      mat,
+      screen: screenMat,
+      clock: clockMat,
+      label: (text, dark) => {
+        const k = `${text}|${dark}`;
+        let m = labelCache.get(k);
+        if (!m) {
+          m = new THREE.MeshStandardMaterial({ map: labelTexture(text, dark), roughness: 0.7 });
+          m.userData.cached = true;
+          labelCache.set(k, m);
+        }
+        return m;
+      },
+      photo: (url, onReady) => {
+        void loadPhoto(url).then((t) => {
+          if (t && !disposed && itemsKey === key) {
+            onReady(t);
+            dirty = true;
+          }
+        });
+      },
+      shadowLights: { count: 0 },
+    };
+
+    // 받침(데스크 매트·모니터 받침대) 위에 놓인 제품은 그 높이만큼 올림. 받침끼리는 낮은 것 위에 높은 것
+    const topOf = (i: DeskItem) => SUPPORT_TOP[i.kind!] ?? 0;
+    const supports = items.filter((i) => i.kind && SUPPORT_TOP[i.kind] !== undefined).sort((a, b) => topOf(a) - topOf(b));
+    const supportBase = new Map<string, number>();
+    const restOn = (i: DeskItem, pool: DeskItem[]) => {
+      const c = center(i, desk);
+      let base = 0;
+      for (const s of pool) if (s.id !== i.id && contains(s, desk, c.x, c.z)) base = Math.max(base, (supportBase.get(s.id) ?? 0) + topOf(s));
+      return base;
+    };
+    for (const s of supports) supportBase.set(s.id, restOn(s, supports.filter((x) => topOf(x) < topOf(s))));
+    const baseOf = (i: DeskItem) => supportBase.get(i.id) ?? restOn(i, supports);
+    const monitors = items.filter((i) => i.kind === "monitor" || i.kind === "ultrawide");
+
+    for (const item of items) {
+      const obj = buildItem(ctx, item);
+      const c = center(item, desk);
+      obj.position.set(c.x, baseOf(item), c.z);
+      obj.rotation.y = (-item.rotation * Math.PI) / 180;
+
+      // 라이트바: 겹친 모니터 위에 올림
+      if (item.kind === "light-bar") {
+        const host = monitors.find((m) => contains(m, desk, c.x, c.z));
+        if (host) {
+          const mc = center(host, desk);
+          const t = monitorTop(host);
+          const r = (-host.rotation * Math.PI) / 180;
+          obj.position.set(mc.x + Math.sin(r) * t.z, baseOf(host) + t.y, mc.z + Math.cos(r) * t.z);
+          obj.rotation.y = r;
+        }
+      }
+      obj.traverse((o) => (o.userData.itemId = item.id));
+      itemsGroup.add(obj);
+      itemObjects.set(item.id, obj);
+    }
+    markSelection();
+  }
+
+  function markSelection() {
+    if (selection) {
+      scene.remove(selection);
+      selection.geometry.dispose();
+      (selection.material as THREE.Material).dispose();
+      selection = null;
+    }
+    const obj = selectedId ? itemObjects.get(selectedId) : undefined;
+    if (obj) {
+      selection = new THREE.BoxHelper(obj, 0x818cf8);
+      scene.add(selection);
+    }
+    dirty = true;
+  }
+
+  // ── 클릭으로 선택 (드래그로 돌린 건 무시) ──
+  const ray = new THREE.Raycaster();
+  let down: { x: number; y: number } | null = null;
+  const onDown = (e: PointerEvent) => (down = { x: e.clientX, y: e.clientY });
+  const onUp = (e: PointerEvent) => {
+    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
+    down = null;
+    const rect = el.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera);
+    const hit = ray.intersectObjects(itemsGroup.children, true).find((h) => h.object.userData.itemId);
+    opts.onSelect(hit ? (hit.object.userData.itemId as string) : null);
+  };
+  el.addEventListener("pointerdown", onDown);
+  el.addEventListener("pointerup", onUp);
+
+  // ── 크기 맞춤·그리기 ──
+  const resize = () => {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    dirty = true;
+  };
+  const ro = new ResizeObserver(resize);
+  ro.observe(container);
+  resize();
+
+  let raf = 0;
+  const loop = () => {
+    raf = requestAnimationFrame(loop);
+    const moved = controls.update();
+    if (moved || dirty) {
+      dirty = false;
+      renderer.render(scene, camera);
+    }
+  };
+  loop();
+
+  return {
+    update({ desk, items, selectedId: sel }) {
+      const first = !lastDesk;
+      const resized = lastDesk && (lastDesk.width !== desk.width || lastDesk.depth !== desk.depth);
+      lastDesk = desk;
+      const lighting = desk.lighting ?? "day";
+      buildDesk(desk);
+      if (lighting !== moodKey || resized || first) {
+        moodKey = lighting;
+        applyMood(lighting, desk);
+      }
+      buildItems(desk, items, lighting);
+      if (sel !== selectedId) {
+        selectedId = sel;
+        markSelection();
+      }
+      if (first || resized) resetView();
+      dirty = true;
+    },
+    resetView,
+    dispose() {
+      disposed = true;
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointerup", onUp);
+      controls.dispose();
+      disposeTree(scene);
+      for (const m of [...matCache.values(), ...labelCache.values(), screenMat, clockMat]) disposeMaterial(m, true);
+      for (const p of photoCache.values()) void p.then((t) => t?.dispose());
+      floorTex.dispose();
+      renderer.dispose();
+      renderer.forceContextLoss(); // 2D↔3D를 여러 번 바꿔도 WebGL 컨텍스트가 쌓이지 않게
+      el.remove();
+    },
+  };
+}
+
+function disposeMaterial(m: THREE.Material, force = false) {
+  if (m.userData.cached && !force) return;
+  const s = m as THREE.MeshStandardMaterial;
+  // 사진 텍스처는 캐시가 관리하므로 여기서 지우지 않음 (상판·라벨 등 직접 만든 것만)
+  if (force || !s.map?.userData.shared) s.map?.dispose?.();
+  s.emissiveMap?.dispose?.();
+  m.dispose();
+}
+
+/** 다시 그리기 전에 GPU 자원 정리 (캐시된 재질·사진은 남김) */
+function disposeTree(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.geometry) mesh.geometry.dispose();
+    const m = mesh.material;
+    if (Array.isArray(m)) m.forEach((x) => disposeMaterial(x));
+    else if (m) disposeMaterial(m);
+  });
+}

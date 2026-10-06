@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
-import { Image, View } from "react-native";
+import { Image, Platform, View } from "react-native";
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, RadialGradient, Rect, Stop, Text as SvgText } from "react-native-svg";
+import { isCutout } from "@/lib/cutout";
 import { defaultColor, type Category, type ItemColor, type Mount, type ProductKind } from "@/store/useDeskStore";
 
 export const DEFAULT_KIND: Record<Category, ProductKind> = {
@@ -1187,6 +1188,19 @@ interface Props {
 function PhotoImage({ uri, width, height, fallback }: { uri: string; width: number | string; height: number | string; fallback: ReactNode }) {
   const [failed, setFailed] = useState(false);
   if (failed) return <>{fallback}</>;
+  // 배경을 지운 사진: 흰 카드 없이 제품 모양 그대로, 그림자도 제품 윤곽을 따라
+  if (isCutout(uri)) {
+    return (
+      <View style={{ width: width as number, height: height as number }}>
+        <Image
+          source={{ uri }}
+          style={[{ width: "100%", height: "100%" }, Platform.OS === "web" ? ({ filter: "drop-shadow(2px 4px 4px rgba(0,0,0,0.45))" } as object) : null]}
+          resizeMode="contain"
+          onError={() => setFailed(true)}
+        />
+      </View>
+    );
+  }
   return (
     <View
       style={{

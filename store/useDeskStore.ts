@@ -143,6 +143,8 @@ interface DeskState {
   /** 드래그 제스처 종료 시 위치/크기/회전을 한 번에 저장. 결합되면 호스트 id를 반환 */
   updateItemTransform: (id: string, t: Transform) => string;
   setItemColor: (id: string, color: ItemColor) => void;
+  /** 제품 사진 바꾸기(배경 지운 사진 등). 같은 사진을 쓰는 "내 제품"도 함께 바꿈 */
+  setItemImage: (id: string, imageUrl: string) => void;
   detachMount: (id: string) => void;
   /** 가장 가까운 짝과 결합. 결합 후 남는 아이템 id를 반환 */
   mountNearest: (id: string) => string;
@@ -401,6 +403,16 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
 
   setItemColor: (id, color) => set((s) => ({ deskItems: s.deskItems.map((i) => (i.id === id ? { ...i, color } : i)) })),
 
+  setItemImage: (id, imageUrl) =>
+    set((s) => {
+      const old = s.deskItems.find((i) => i.id === id)?.imageUrl;
+      if (!old) return s;
+      return {
+        deskItems: s.deskItems.map((i) => (i.id === id ? { ...i, imageUrl } : i)),
+        customProducts: s.customProducts.map((p) => (p.imageUrl === old ? { ...p, imageUrl } : p)),
+      };
+    }),
+
   detachMount: (id) =>
     set((s) => {
       const host = s.deskItems.find((i) => i.id === id);
@@ -493,7 +505,7 @@ const history = { lastKey: null as string | null, lastTime: 0 };
 /** 책상·제품을 바꾸는 동작. 실행 전 상태를 기록해 두고, 실제로 바뀐 경우에만 되돌리기 목록에 넣음 */
 type Tracked =
   | "setDeskSize" | "setDeskMaterial" | "setLighting" | "addDeskItem" | "updateItemPosition" | "updateItemSize"
-  | "updateItemRotation" | "updateItemTransform" | "setItemColor" | "detachMount" | "mountNearest" | "reorder"
+  | "updateItemRotation" | "updateItemTransform" | "setItemColor" | "setItemImage" | "detachMount" | "mountNearest" | "reorder"
   | "removeItem" | "clearDesk" | "loadSetup" | "duplicateItem" | "applyTemplate";
 
 /** 연속 입력(크기 타이핑, 화살표 이동 등)은 1초 안이면 한 단계로 묶음 */
@@ -507,7 +519,7 @@ function trackHistory() {
   const st = useDeskStore.getState();
   const names: Tracked[] = [
     "setDeskSize", "setDeskMaterial", "setLighting", "addDeskItem", "updateItemPosition", "updateItemSize",
-    "updateItemRotation", "updateItemTransform", "setItemColor", "detachMount", "mountNearest", "reorder",
+    "updateItemRotation", "updateItemTransform", "setItemColor", "setItemImage", "detachMount", "mountNearest", "reorder",
     "removeItem", "clearDesk", "loadSetup", "duplicateItem", "applyTemplate",
   ];
   const wrapped: Partial<DeskState> = {};

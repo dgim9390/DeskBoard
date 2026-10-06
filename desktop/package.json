@@ -1,7 +1,7 @@
 {
   "name": "deskterior-desktop",
   "productName": "Deskterior",
-  "version": "1.1.3",
+  "version": "1.2.0",
   "description": "데스크테리어 시뮬레이터 macOS 앱",
   "main": "main.js",
   "private": true,
@@ -19,6 +19,8 @@
     },
     "files": [
       "main.js",
+      "preload.js",
+      "pageReader.js",
       "updater.js",
       "web/**/*"
     ],

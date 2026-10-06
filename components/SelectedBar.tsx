@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { isCutout, removeBackground } from "@/lib/cutout";
+import { toast } from "@/lib/toast";
 import { MIN_ITEM_CM, defaultColor, findPartner, reorderTarget, useDeskStore, type DeskItem, type ItemColor } from "@/store/useDeskStore";
 import { SizeFields } from "./SizeFields";
 
@@ -41,11 +44,25 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
   const detachMount = useDeskStore((s) => s.detachMount);
   const mountNearest = useDeskStore((s) => s.mountNearest);
   const reorder = useDeskStore((s) => s.reorder);
+  const [cutting, setCutting] = useState(false);
   const deskItems = useDeskStore((s) => s.deskItems);
   const partner = findPartner(deskItems, item);
   const canForward = reorderTarget(deskItems, item.id, "forward") >= 0;
   const canBackward = reorderTarget(deskItems, item.id, "backward") >= 0;
   const color = item.color ?? defaultColor(item.kind);
+
+  // 예전에 넣은 사진(배경 있음)도 나중에 배경을 지울 수 있게
+  const canCut = item.kind === "photo" && !!item.imageUrl && !isCutout(item.imageUrl);
+  const cutBackground = async () => {
+    if (!item.imageUrl || cutting) return;
+    setCutting(true);
+    const r = await removeBackground(item.imageUrl);
+    setCutting(false);
+    if (r.ok && r.dataUrl) {
+      useDeskStore.getState().setItemImage(item.id, r.dataUrl);
+      toast("배경을 지웠어요", { icon: "cut-outline", action: { label: "되돌리기", onPress: () => useDeskStore.getState().undo() } });
+    } else toast(r.reason ?? "배경을 지우지 못했어요", { icon: "alert-circle-outline" });
+  };
 
   return (
     <View className="mb-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2">
@@ -124,6 +141,7 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
             onPress={() => onSelect(mountNearest(item.id))}
           />
         ) : null}
+        {canCut && <Chip icon="cut-outline" label={cutting ? "지우는 중…" : "배경 지우기"} onPress={cutBackground} disabled={cutting} />}
         {item.link && <Chip icon="open-outline" label="제품 페이지" onPress={() => Linking.openURL(item.link!)} />}
       </View>
     </View>

@@ -1,11 +1,12 @@
 // Deskterior macOS 앱 (Electron)
 // Expo 웹 빌드(web/)를 앱 안에 넣고 app://deskterior 주소로 띄운다.
 // file:// 로 열면 절대경로(/_expo/...)와 localStorage가 깨지므로 전용 프로토콜을 쓴다.
-const { app, BrowserWindow, Menu, net, protocol, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, net, protocol, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const updater = require("./updater");
+const pageReader = require("./pageReader");
 
 const SCHEME = "app";
 const HOST = "deskterior";
@@ -70,6 +71,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, "preload.js"),
     },
   });
 
@@ -157,6 +159,12 @@ function buildMenu() {
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
+
+// 앱 화면에서만 받는 요청: 쇼핑몰 페이지 읽기
+ipcMain.handle("deskterior:read-page", async (event, url) => {
+  if (!event.senderFrame || !event.senderFrame.url.startsWith(`${SCHEME}://${HOST}`)) throw new Error("허용되지 않은 요청이에요.");
+  return pageReader.readPage(url);
+});
 
 app.whenReady().then(() => {
   updater.init();

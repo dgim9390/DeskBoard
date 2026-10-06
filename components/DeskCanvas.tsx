@@ -7,6 +7,7 @@ import { exportNodeAsPng } from "@/lib/exportImage";
 import { toast } from "@/lib/toast";
 import { useDeskStore, type Lighting } from "@/store/useDeskStore";
 import { CenterGuides, useGuideState } from "./CenterGuides";
+import { Desk3DView } from "./Desk3DView";
 import { DeskSurface } from "./DeskSurface";
 import { DraggableItem } from "./DraggableItem";
 import { LIGHTING, LightingOverlay } from "./LightingOverlay";
@@ -18,7 +19,7 @@ const PAD = 30; // 캔버스 가장자리 여백 (치수 표시 공간)
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
 /** 캔버스 위 반투명 알약 모양 도구 버튼 */
-function ToolButton({ icon, label, onPress, disabled, active, danger }: { icon: IconName; label: string; onPress: () => void; disabled?: boolean; active?: boolean; danger?: boolean }) {
+function ToolButton({ icon, text, label, onPress, disabled, active, danger }: { icon?: IconName; text?: string; label: string; onPress: () => void; disabled?: boolean; active?: boolean; danger?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
@@ -27,9 +28,10 @@ function ToolButton({ icon, label, onPress, disabled, active, danger }: { icon: 
       accessibilityLabel={label}
       accessibilityState={{ disabled, selected: active }}
       hitSlop={4}
-      className={`h-8 w-8 items-center justify-center rounded-full ${active ? "bg-zinc-100" : "active:bg-white/10"} ${disabled ? "opacity-30" : ""}`}
+      className={`h-8 items-center justify-center rounded-full ${text ? "px-2.5" : "w-8"} ${active ? "bg-zinc-100" : "active:bg-white/10"} ${disabled ? "opacity-30" : ""}`}
     >
-      <Ionicons name={icon} size={16} color={active ? "#18181b" : danger ? "#fca5a5" : "#e4e4e7"} />
+      {icon && <Ionicons name={icon} size={16} color={active ? "#18181b" : danger ? "#fca5a5" : "#e4e4e7"} />}
+      {text && <Text className={`text-xs font-bold ${active ? "text-zinc-900" : "text-zinc-200"}`}>{text}</Text>}
     </Pressable>
   );
 }
@@ -55,6 +57,7 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
   const lighting = desk.lighting ?? "day";
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [exporting, setExporting] = useState(false);
+  const [view3d, setView3d] = useState(false);
   const rootRef = useRef<View>(null);
   const guides = useGuideState();
 
@@ -85,92 +88,98 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
 
   return (
     <View ref={rootRef} onLayout={onLayout} className="flex-1 overflow-hidden rounded-2xl border border-zinc-800" style={{ backgroundColor: room }}>
-      {/* 방 조명: 책상 뒤로 은은하게 밝고 가장자리는 어둡게 */}
-      <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}>
-        <Defs>
-          <RadialGradient id="roomSpot" cx="0.5" cy="0.42" r="0.85">
-            <Stop offset="0" stopColor="#fff" stopOpacity={lighting === "night" ? 0.025 : 0.055} />
-            <Stop offset="0.45" stopColor="#fff" stopOpacity={0.015} />
-            <Stop offset="0.75" stopColor="#000" stopOpacity={0.08} />
-            <Stop offset="1" stopColor="#000" stopOpacity={0.22} />
-          </RadialGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill="url(#roomSpot)" />
-      </Svg>
-
-      {/* 바닥 탭 → 선택 해제 */}
-      <Pressable style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} onPress={() => onSelect(null)} />
-
-      {scale > 0 && (
+      {view3d ? (
+        <Desk3DView selectedId={selectedId} onSelect={onSelect} hideUi={exporting} />
+      ) : (
         <>
-          <Text pointerEvents="none" className="absolute text-center text-[11px] text-zinc-500" style={{ left, width: dw, top: top - 20 }}>
-            {desk.width} cm
-          </Text>
-          <Text
-            pointerEvents="none"
-            className="absolute text-center text-[11px] text-zinc-500"
-            style={{ left: left - 40, width: 60, top: top + dd / 2 - 8, transform: [{ rotate: "-90deg" }] }}
-          >
-            {desk.depth} cm
-          </Text>
+          {/* 방 조명: 책상 뒤로 은은하게 밝고 가장자리는 어둡게 */}
+          <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}>
+            <Defs>
+              <RadialGradient id="roomSpot" cx="0.5" cy="0.42" r="0.85">
+                <Stop offset="0" stopColor="#fff" stopOpacity={lighting === "night" ? 0.025 : 0.055} />
+                <Stop offset="0.45" stopColor="#fff" stopOpacity={0.015} />
+                <Stop offset="0.75" stopColor="#000" stopOpacity={0.08} />
+                <Stop offset="1" stopColor="#000" stopOpacity={0.22} />
+              </RadialGradient>
+            </Defs>
+            <Rect x="0" y="0" width="100%" height="100%" fill="url(#roomSpot)" />
+          </Svg>
 
-          {/* 책상 상판 (좌표계 원점 = 책상 좌상단) */}
-          <View style={{ position: "absolute", left, top, width: dw, height: dd }}>
-            {/* 책상이 바닥에서 살짝 떠 보이는 그림자 (겹친 반투명 판으로 부드럽게) */}
-            {[0, 1, 2].map((i) => (
-              <View
-                key={i}
-                style={{ position: "absolute", left: -2 - i * 3, top: 5 + i * 2, width: dw + 4 + i * 6, height: dd + 2 + i * 4, borderRadius: 4 + i * 3, backgroundColor: "rgba(0,0,0,0.14)" }}
-              />
-            ))}
-            <Pressable style={{ position: "absolute", left: 0, top: 0, width: dw, height: dd, borderRadius: 3, overflow: "hidden" }} onPress={() => onSelect(null)}>
-              <DeskSurface width={dw} height={dd} material={desk.material} />
-            </Pressable>
-          </View>
+          {/* 바닥 탭 → 선택 해제 */}
+          <Pressable style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} onPress={() => onSelect(null)} />
 
-          {/* 아이템 레이어: 캔버스 전체를 덮어서 책상 밖에 걸친 핸들도 터치 가능 (빈 곳 터치는 통과) */}
-          <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-            {deskItems.map((item) => (
-              <DraggableItem
-                key={item.id}
-                item={item}
-                scale={scale}
-                originX={left}
-                originY={top}
-                deskWidthPx={dw}
-                deskHeightPx={dd}
-                selected={selectedId === item.id}
-                onSelect={onSelect}
-                guides={guides}
-              />
-            ))}
-            {/* 조명 분위기: 제품 위(zIndex 1~100), 선택 핸들 아래(200) */}
-            <View pointerEvents="none" style={{ position: "absolute", left, top, width: dw, height: dd, zIndex: 150 }}>
-              <LightingOverlay items={deskItems} lighting={lighting} scale={scale} width={dw} height={dd} />
-            </View>
-          </View>
+          {scale > 0 && (
+            <>
+              <Text pointerEvents="none" className="absolute text-center text-[11px] text-zinc-500" style={{ left, width: dw, top: top - 20 }}>
+                {desk.width} cm
+              </Text>
+              <Text
+                pointerEvents="none"
+                className="absolute text-center text-[11px] text-zinc-500"
+                style={{ left: left - 40, width: 60, top: top + dd / 2 - 8, transform: [{ rotate: "-90deg" }] }}
+              >
+                {desk.depth} cm
+              </Text>
 
-          {/* 빈 책상: 시작 안내 */}
-          {deskItems.length === 0 && !exporting && (
-            <View pointerEvents="box-none" style={{ position: "absolute", left, top, width: dw, height: dd, alignItems: "center", justifyContent: "center" }}>
-              <View className="items-center rounded-2xl bg-black/55 px-5 py-4">
-                <Text className="text-sm font-semibold text-white">빈 책상이에요</Text>
-                <Text className="mt-1 text-xs text-zinc-300">아래에서 장비를 추가하거나, 완성된 셋업으로 시작해 보세요</Text>
-                <Pressable
-                  onPress={() => router.navigate("/recommend")}
-                  accessibilityRole="button"
-                  accessibilityLabel="추천 셋업으로 시작하기"
-                  className="mt-3 flex-row items-center rounded-full bg-indigo-500 px-4 py-2 active:bg-indigo-600"
-                >
-                  <Ionicons name="sparkles" size={14} color="#fff" />
-                  <Text className="ml-1.5 text-xs font-semibold text-white">추천 셋업으로 시작하기</Text>
+              {/* 책상 상판 (좌표계 원점 = 책상 좌상단) */}
+              <View style={{ position: "absolute", left, top, width: dw, height: dd }}>
+                {/* 책상이 바닥에서 살짝 떠 보이는 그림자 (겹친 반투명 판으로 부드럽게) */}
+                {[0, 1, 2].map((i) => (
+                  <View
+                    key={i}
+                    style={{ position: "absolute", left: -2 - i * 3, top: 5 + i * 2, width: dw + 4 + i * 6, height: dd + 2 + i * 4, borderRadius: 4 + i * 3, backgroundColor: "rgba(0,0,0,0.14)" }}
+                  />
+                ))}
+                <Pressable style={{ position: "absolute", left: 0, top: 0, width: dw, height: dd, borderRadius: 3, overflow: "hidden" }} onPress={() => onSelect(null)}>
+                  <DeskSurface width={dw} height={dd} material={desk.material} />
                 </Pressable>
               </View>
-            </View>
-          )}
 
-          {/* 드래그 중에만 보이는 중앙 가이드 (제품 위에 표시, 터치 통과) */}
-          <CenterGuides left={left} top={top} width={dw} height={dd} g={guides} />
+              {/* 아이템 레이어: 캔버스 전체를 덮어서 책상 밖에 걸친 핸들도 터치 가능 (빈 곳 터치는 통과) */}
+              <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+                {deskItems.map((item) => (
+                  <DraggableItem
+                    key={item.id}
+                    item={item}
+                    scale={scale}
+                    originX={left}
+                    originY={top}
+                    deskWidthPx={dw}
+                    deskHeightPx={dd}
+                    selected={selectedId === item.id}
+                    onSelect={onSelect}
+                    guides={guides}
+                  />
+                ))}
+                {/* 조명 분위기: 제품 위(zIndex 1~100), 선택 핸들 아래(200) */}
+                <View pointerEvents="none" style={{ position: "absolute", left, top, width: dw, height: dd, zIndex: 150 }}>
+                  <LightingOverlay items={deskItems} lighting={lighting} scale={scale} width={dw} height={dd} />
+                </View>
+              </View>
+
+              {/* 빈 책상: 시작 안내 */}
+              {deskItems.length === 0 && !exporting && (
+                <View pointerEvents="box-none" style={{ position: "absolute", left, top, width: dw, height: dd, alignItems: "center", justifyContent: "center" }}>
+                  <View className="items-center rounded-2xl bg-black/55 px-5 py-4">
+                    <Text className="text-sm font-semibold text-white">빈 책상이에요</Text>
+                    <Text className="mt-1 text-xs text-zinc-300">아래에서 장비를 추가하거나, 완성된 셋업으로 시작해 보세요</Text>
+                    <Pressable
+                      onPress={() => router.navigate("/recommend")}
+                      accessibilityRole="button"
+                      accessibilityLabel="추천 셋업으로 시작하기"
+                      className="mt-3 flex-row items-center rounded-full bg-indigo-500 px-4 py-2 active:bg-indigo-600"
+                    >
+                      <Ionicons name="sparkles" size={14} color="#fff" />
+                      <Text className="ml-1.5 text-xs font-semibold text-white">추천 셋업으로 시작하기</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+
+              {/* 드래그 중에만 보이는 중앙 가이드 (제품 위에 표시, 터치 통과) */}
+              <CenterGuides left={left} top={top} width={dw} height={dd} g={guides} />
+            </>
+          )}
         </>
       )}
 
@@ -193,8 +202,10 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
             <ToolButton icon="trash-outline" label="책상 비우기" onPress={onRequestClear} disabled={deskItems.length === 0} danger />
           </View>
 
-          {/* 오른쪽 위: 조명 분위기 (낮 · 저녁 · 밤) */}
+          {/* 오른쪽 위: 2D/3D 보기 · 조명 분위기 (낮 · 저녁 · 밤) */}
           <View className={`${pill} right-2`}>
+            <ToolButton text="3D" label={view3d ? "위에서 보기(2D)로 전환" : "3D로 보기"} onPress={() => setView3d((v) => !v)} active={view3d} />
+            <View className="mx-0.5 h-4 w-px bg-white/15" />
             {LIGHTING_ORDER.map((l) => (
               <ToolButton key={l} icon={LIGHTING[l].icon} label={`조명 ${LIGHTING[l].label}`} onPress={() => setLighting(l)} active={l === lighting} />
             ))}
