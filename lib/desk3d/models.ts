@@ -103,39 +103,140 @@ function spotDown(ctx: ModelCtx, color: string, power: number, pos: THREE.Vector
   return [s, s.target];
 }
 
-// ── 키캡 배열 ────────────────────────────────────────────
-function keys(ctx: ModelCtx, p: Pal, w: number, d: number, rows: number, top: number, opts: { space?: boolean; glowColor?: string } = {}) {
-  const cols = Math.max(3, Math.round(w / 1.9));
-  const cw = w / cols;
-  const rh = d / rows;
-  const geo = new THREE.BoxGeometry(cw * 0.82, 0.8, rh * 0.8);
-  const m = opts.glowColor && glow(ctx.lighting)
-    ? ctx.mat(p.key, { rough: 0.6, emissive: opts.glowColor, emissiveIntensity: 0.35 * glow(ctx.lighting) })
-    : ctx.mat(p.key, { rough: 0.7 });
-  const spaceRow = opts.space ? rows - 1 : -1;
-  const count = rows * cols;
-  const inst = new THREE.InstancedMesh(geo, m, count);
-  const mtx = new THREE.Matrix4();
-  let n = 0;
+// ── 키보드 ──────────────────────────────────────────────
+// 실제 배열을 1u(키 한 칸) 단위로 적고, 제품 크기에 맞춰 늘리거나 줄임.
+// 각 줄: [키 너비(u), 앞 간격(u), 보조키 여부]. 숫자만 쓰면 일반 키
+type Key = number | [number, number?, boolean?];
+const K = (w: number, gap = 0, mod = true): Key => [w, gap, mod];
+const ROW_F = (nav: boolean): Key[] => [K(1, 0), K(1, 1, false), 1, 1, 1, K(1, 0.5, false), 1, 1, 1, K(1, 0.5, false), 1, 1, 1, ...(nav ? [K(1, 0.25), K(1, 0), K(1, 0)] : [])];
+const NAV3 = [K(1, 0.25), K(1, 0), K(1, 0)];
+const MAIN: Key[][] = [
+  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, K(2)],
+  [K(1.5), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, K(1.5)],
+  [K(1.75), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, K(2.25)],
+  [K(2.25), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, K(2.75)],
+  [K(1.25), K(1.25), K(1.25), [6.25, 0, false], K(1.25), K(1.25), K(1.25), K(1.25)],
+];
+
+interface Layout {
+  rows: Key[][];
+  /** F열 다음 줄 간격 */
+  fGap: number;
+  wU: number;
+  dU: number;
+}
+
+function layoutFor(kind: ProductKind, w: number): Layout {
+  if (kind === "keyboard-full" || w >= 41) {
+    // 풀사이즈: 본체(15u) + 방향키 묶음(3u) + 숫자패드(4u)
+    const rows: Key[][] = [
+      ROW_F(true),
+      [...MAIN[0], ...NAV3, K(1, 0.25), K(1, 0), K(1, 0), K(1, 0)],
+      [...MAIN[1], ...NAV3, K(1, 0.25, false), 1, 1, K(1)],
+      [...MAIN[2], K(1, 3.5, false), 1, 1],
+      [...MAIN[3], K(1, 1.25), K(1, 1.25, false), 1, 1, K(1)],
+      [...MAIN[4], K(1, 0.25), K(1, 0), K(1, 0), K(2, 0.25, false), 1],
+    ];
+    return { rows, fGap: 0.5, wU: 22.5, dU: 6.5 };
+  }
+  if (w >= 33) {
+    const rows = [ROW_F(true), [...MAIN[0], ...NAV3], [...MAIN[1], ...NAV3], [...MAIN[2]], [...MAIN[3], K(1, 1.25)], [...MAIN[4], K(1, 0.25), K(1, 0), K(1, 0)]];
+    return { rows, fGap: 0.5, wU: 18.25, dU: 6.5 };
+  }
+  // 75% 배열 (작은 키보드): 간격 없이 촘촘하게
+  const rows: Key[][] = [
+    [K(1), ...Array(12).fill(1), K(1), K(1), K(1)],
+    [...MAIN[0], K(1)],
+    [...MAIN[1], K(1)],
+    [...MAIN[2], K(1)],
+    [K(2.25), 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, K(1.75), K(1), K(1)],
+    [K(1.25), K(1.25), K(1.25), [6.25, 0, false], K(1), K(1), K(1), K(1), K(1), K(1)],
+  ];
+  return { rows, fGap: 0.25, wU: 16, dU: 6.25 };
+}
+
+/** 위가 좁은 키캡 모양 (사각뿔대). 바닥 1×1, 높이 1 기준 → 키마다 크기 조절 */
+let capGeo: THREE.BufferGeometry | null = null;
+function keycapGeometry() {
+  if (!capGeo) {
+    capGeo = new THREE.CylinderGeometry(0.78 * Math.SQRT1_2, Math.SQRT1_2, 1, 4, 1);
+    capGeo.rotateY(Math.PI / 4);
+    capGeo.userData.shared = true; // 모든 키보드가 같이 씀 (지우지 않음)
+  }
+  return capGeo;
+}
+
+function keyboardModel(ctx: ModelCtx, w: number, d: number, p: Pal, kind: ProductKind): THREE.Object3D[] {
+  const L = layoutFor(kind, w);
+  const u = Math.min((w - 1.4) / L.wU, (d - 1.2) / L.dU);
+  const kw = L.wU * u;
+  const kd = L.dU * u;
+  const g = new THREE.Group();
+  const caseH = 1.8;
+  g.add(box(w, caseH, d, ctx.mat(p.body, { rough: 0.45, metal: p.metal })));
+  g.add(box(kw + 0.3, 0.1, kd + 0.3, ctx.mat("#0c0c0e", { rough: 0.9 }), 0, caseH + 0.05, 0)); // 키 사이로 보이는 바닥판
+
+  const keys: { x: number; z: number; w: number; mod: boolean }[] = [];
+  let z = -kd / 2;
+  L.rows.forEach((row, r) => {
+    let x = -kw / 2;
+    for (const k of row) {
+      const [kwU, gap = 0, mod = false] = typeof k === "number" ? [k, 0, false] : k;
+      x += gap * u;
+      keys.push({ x: x + (kwU * u) / 2, z: z + u / 2, w: kwU * u, mod });
+      x += kwU * u;
+    }
+    z += u + (r === 0 ? L.fGap * u : 0);
+  });
+  const capH = Math.max(0.6, u * 0.5);
+  const geo = keycapGeometry();
+  const alpha = new THREE.InstancedMesh(geo, ctx.mat(p.key, { rough: 0.65 }), keys.length);
+  const mods = new THREE.InstancedMesh(geo, ctx.mat(p.trim, { rough: 0.65 }), keys.length);
+  const m = new THREE.Matrix4();
+  let na = 0;
+  let nm = 0;
+  for (const k of keys) {
+    m.compose(v(k.x, caseH + 0.1 + capH / 2, k.z), new THREE.Quaternion(), v(k.w - u * 0.1, capH, u * 0.9));
+    if (k.mod) mods.setMatrixAt(nm++, m);
+    else alpha.setMatrixAt(na++, m);
+  }
+  alpha.count = na;
+  mods.count = nm;
+  for (const inst of [alpha, mods]) {
+    inst.castShadow = inst.receiveShadow = true;
+    g.add(inst);
+  }
+  // 뒤쪽이 살짝 높은 경사
+  g.rotation.x = Math.atan(1 / d);
+  g.position.y = 0.4;
+  return [g];
+}
+
+/** 스트림덱 같은 LCD 버튼 컨트롤러: 받침대 위 비스듬한 본체, 5×3 빛나는 버튼 */
+const DECK_COLORS = ["#ff5a5f", "#ffb020", "#3dd68c", "#3b82f6", "#a855f7", "#14b8a6", "#f472b6", "#facc15", "#60a5fa", "#fb923c", "#22c55e", "#e879f9", "#38bdf8", "#f87171", "#a3e635"];
+function streamDeck(ctx: ModelCtx, w: number, d: number, p: Pal): THREE.Object3D[] {
+  const body = new THREE.Group();
+  const bd = d * 0.82;
+  const bh = 2;
+  body.add(box(w, bh, bd, ctx.mat(p.body, { rough: 0.5 }), 0, bh / 2, 0));
+  const cols = 5;
+  const rows = 3;
+  const pitch = Math.min((w - 1.6) / cols, (bd - 1.4) / rows);
+  const lit = 0.55 + glow(ctx.lighting) * 0.6;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const x = -w / 2 + cw * (c + 0.5);
-      const z = -d / 2 + rh * (r + 0.5);
-      const s0 = Math.floor(cols * 0.3);
-      const s1 = Math.ceil(cols * 0.68);
-      if (r === spaceRow && c > s0 && c < s1) continue; // 스페이스바 자리
-      if (r === spaceRow && c === s0) {
-        // 스페이스바 한 개로 길게
-        const span = s1 - s0;
-        mtx.compose(v(-w / 2 + cw * (s0 + span / 2), top + 0.4, z), new THREE.Quaternion(), v(span * 0.97, 1, 1));
-      } else mtx.compose(v(x, top + 0.4, z), new THREE.Quaternion(), v(1, 1, 1));
-      inst.setMatrixAt(n++, mtx);
+      const color = DECK_COLORS[r * cols + c];
+      const key = box(pitch * 0.78, 0.3, pitch * 0.78, ctx.mat("#0d0d10", { rough: 0.3, emissive: color, emissiveIntensity: lit }), (c - (cols - 1) / 2) * pitch, bh + 0.15, (r - (rows - 1) / 2) * pitch);
+      key.castShadow = false;
+      body.add(key);
     }
   }
-  inst.count = n;
-  inst.castShadow = true;
-  inst.receiveShadow = true;
-  return inst;
+  // 받침대: 뒤를 들어 약 30° 기울임
+  const tilt = 0.52;
+  body.rotation.x = tilt;
+  body.position.set(0, Math.sin(tilt) * (bd / 2) + 0.6, -d * 0.04);
+  const foot = ctx.mat(p.trim, { rough: 0.5, metal: 0.3 });
+  return [body, box(w * 0.7, 0.6, d * 0.7, foot, 0, 0.3, -d * 0.1), box(w * 0.5, Math.sin(tilt) * bd, 0.8, foot, 0, (Math.sin(tilt) * bd) / 2, -d * 0.4)];
 }
 
 // ── 종류별 모형 ──────────────────────────────────────────
@@ -225,9 +326,9 @@ function laptopOpen(ctx: ModelCtx, w: number, d: number, color: string, stand?: 
 }
 
 const BUILD: Partial<Record<ProductKind, Build>> = {
-  keyboard: (ctx, w, d, p) => [box(w, 2, d, ctx.mat(p.body, { rough: 0.5, metal: p.metal })), keys(ctx, p, w - 1.4, d - 1.4, 6, 2, { space: true })],
-  "keyboard-full": (ctx, w, d, p) => [box(w, 2, d, ctx.mat(p.body, { rough: 0.5, metal: p.metal })), keys(ctx, p, w - 1.4, d - 1.4, 6, 2, { space: true })],
-  "macro-pad": (ctx, w, d, p) => [box(w, 2.4, d, ctx.mat(p.body, { rough: 0.5 })), keys(ctx, p, w - 1.6, d - 1.6, 3, 2.4, { glowColor: "#b39dff" })],
+  keyboard: (ctx, w, d, p) => keyboardModel(ctx, w, d, p, "keyboard"),
+  "keyboard-full": (ctx, w, d, p) => keyboardModel(ctx, w, d, p, "keyboard-full"),
+  "macro-pad": (ctx, w, d, p) => streamDeck(ctx, w, d, p),
   mouse: (ctx, w, d, p) => {
     const dome = shadow(new THREE.Mesh(new THREE.SphereGeometry(1, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), ctx.mat(p.body, { rough: 0.35 })));
     dome.scale.set(w / 2, 3.6, d / 2);
@@ -331,15 +432,26 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
     return [box(w, 0.8, d, ctx.mat(ALU[p === PAL.black ? "black" : "white"], { rough: 0.35, metal: 0.6 })), phone];
   },
   "tablet-stand": (ctx, w, d, p) => {
-    const tw = Math.min(w * 0.95, 25);
+    // 가로로 세운 태블릿(위에서 본 폭 = 태블릿 폭) + 작은 받침대
+    const tw = w;
+    const th = w * 0.7;
+    const lean = 0.35; // 뒤로 약 20°
+    const bz = d * 0.15; // 태블릿 아래 모서리 위치
     const tab = new THREE.Group();
-    tab.add(box(tw, 17.5, 0.7, ctx.mat("#1a1a1d", { rough: 0.3 }), 0, 0, 0));
-    const s = new THREE.Mesh(new THREE.PlaneGeometry(tw - 1.2, 16.3), ctx.screen);
-    s.position.z = 0.36;
-    tab.add(s);
-    tab.position.set(0, 10, -d * 0.1);
-    tab.rotation.x = -0.3;
-    return [box(w, 0.8, d, ctx.mat(ALU[p === PAL.black ? "black" : "white"], { rough: 0.35, metal: 0.6 })), tab];
+    tab.add(box(tw, th, 0.65, ctx.mat("#1a1a1d", { rough: 0.3 }), 0, th / 2, 0));
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(tw - 1.1, th - 1.1), ctx.screen);
+    screen.position.set(0, th / 2, 0.33);
+    tab.add(screen);
+    tab.position.set(0, 1.4, bz);
+    tab.rotation.x = -lean;
+    const m = ctx.mat(ALU[p === PAL.black ? "black" : "white"], { rough: 0.35, metal: 0.6 });
+    const back = v(0, 1.4 + Math.cos(lean) * th * 0.45, bz - Math.sin(lean) * th * 0.45 - 0.4);
+    return [
+      tab,
+      box(w * 0.55, 0.7, d * 0.6, m, 0, 0.35, -d * 0.05), // 받침
+      box(w * 0.5, 1.6, 0.7, m, 0, 0.8, bz + 0.7), // 앞 턱
+      rod(v(0, 0.7, -d * 0.25), back, 0.5, m), // 뒤 지지대
+    ];
   },
   headphones: (ctx, w, d, p) => {
     const m = ctx.mat(p.body, { rough: 0.55 });

@@ -125,15 +125,42 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
 
   const floorTex = floorTexture();
   const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.85 });
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), floorMat);
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -DESK_H;
-  floor.receiveShadow = true;
-  floorTex.repeat.set(6, 6);
   const wallMat = new THREE.MeshStandardMaterial({ color: "#cfcac2", roughness: 0.95 });
-  const wall = new THREE.Mesh(new THREE.PlaneGeometry(1200, 400), wallMat);
-  wall.receiveShadow = true;
-  room.add(floor, wall);
+  const trimMat = new THREE.MeshStandardMaterial({ color: "#e9e6e0", roughness: 0.7 });
+  // 방: 책상 크기에 맞춘 작은 방 (바닥 + 뒤·양옆 벽). 벽은 안쪽 면만 그려서 밖에서 보면 투명
+  const roomParts = new THREE.Group();
+  room.add(roomParts);
+  function buildRoom(desk: DeskSize) {
+    disposeTree(roomParts, true);
+    roomParts.clear();
+    const W = Math.max(desk.width + 140, 260);
+    const Dp = Math.max(desk.depth + 210, 280);
+    const H = 240;
+    const backZ = -desk.depth / 2 - 8;
+    const floorY = -DESK_H;
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, Dp), floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(0, floorY, backZ + Dp / 2);
+    floor.receiveShadow = true;
+    floorTex.repeat.set(W / 170, Dp / 170);
+    const wall = (w: number, x: number, z: number, rotY: number) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, H), wallMat);
+      m.position.set(x, floorY + H / 2, z);
+      m.rotation.y = rotY;
+      m.receiveShadow = true;
+      const base = new THREE.Mesh(new THREE.BoxGeometry(w, 7, 1.2), trimMat); // 걸레받이
+      base.position.set(x, floorY + 3.5, z);
+      base.rotation.y = rotY;
+      base.translateZ(0.6);
+      roomParts.add(m, base);
+    };
+    wall(W, 0, backZ, 0);
+    wall(Dp, -W / 2, backZ + Dp / 2, Math.PI / 2);
+    wall(Dp, W / 2, backZ + Dp / 2, -Math.PI / 2);
+    roomParts.add(floor);
+    return Dp;
+  }
+  let roomDepth = 280;
 
   let deskKey = "";
   let deskTop: THREE.Mesh | null = null;
@@ -167,7 +194,7 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
     const apron = new THREE.Mesh(new THREE.BoxGeometry(desk.width - 10, 6, 2), legMat);
     apron.position.set(0, -DESK_THICK - 3, -desk.depth / 2 + 6);
     deskParts.add(apron);
-    wall.position.set(0, 200 - DESK_H, -desk.depth / 2 - 8);
+    roomDepth = buildRoom(desk);
   }
 
   // ── 조명 ──
@@ -184,7 +211,7 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
   function applyMood(lighting: Lighting, desk: DeskSize) {
     const m = MOOD[lighting];
     scene.background = new THREE.Color(m.bg);
-    scene.fog = new THREE.Fog(m.bg, 500, 1400);
+    scene.fog = new THREE.Fog(m.bg, 450, 900);
     renderer.toneMappingExposure = m.exposure;
     hemi.color.set(m.hemi[0]);
     hemi.groundColor.set(m.hemi[1]);
@@ -217,7 +244,8 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
     const dist = Math.max((lastDesk.width * 0.56) / tanH, 62 / tanV);
     camera.position.set(0, dist * 0.5, dist * 0.87);
     controls.target.set(0, 10, -lastDesk.depth * 0.05);
-    controls.maxDistance = dist * 2.5;
+    // 방 밖으로 너무 멀어지지 않게 (뒤로는 방 앞쪽 끝까지 정도)
+    controls.maxDistance = Math.max(dist * 1.35, Math.min(dist * 2, roomDepth));
     controls.update();
     dirty = true;
   }
@@ -402,10 +430,11 @@ function disposeMaterial(m: THREE.Material, force = false) {
 }
 
 /** 다시 그리기 전에 GPU 자원 정리 (캐시된 재질·사진은 남김) */
-function disposeTree(root: THREE.Object3D) {
+function disposeTree(root: THREE.Object3D, keepMaterials = false) {
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
-    if (mesh.geometry) mesh.geometry.dispose();
+    if (mesh.geometry && !mesh.geometry.userData.shared) mesh.geometry.dispose();
+    if (keepMaterials) return;
     const m = mesh.material;
     if (Array.isArray(m)) m.forEach((x) => disposeMaterial(x));
     else if (m) disposeMaterial(m);
