@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { guessProduct } from "@/lib/productLink";
+import { FLAT_KINDS, guessProduct } from "@/lib/productLink";
 import type { DeskItem, ItemColor, Lighting, Mount, ProductKind } from "@/store/useDeskStore";
 
 /**
@@ -517,17 +517,13 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
   },
 };
 
-// 위에서 찍은 사진이 자연스러운(책상 위에 납작하게 놓이는) 종류
-const FLAT_KINDS = new Set<ProductKind>([
-  "keyboard", "keyboard-full", "mouse", "mouse-vertical", "trackpad", "mouse-pad", "desk-mat", "wrist-rest",
-  "notebook-pad", "macro-pad", "usbc-hub", "wireless-charger", "power-strip",
-]);
-
 /**
  * 사진 제품을 3D에서 눕힐지(위에서 본 사진) 세울지(정면 사진).
  * 분류 → 이름·사이트 주소 → 사진과 놓인 자리의 비율 순서로 판단
  */
 export function photoLiesFlat(item: DeskItem, imgAspect?: number): boolean {
+  // 높이를 알면 그걸로: 위에서 본 크기보다 확실히 낮으면 납작한 물건
+  if (item.tall) return item.tall <= Math.max(item.width, item.height) * 0.5;
   if (item.category === "keyboard" || item.category === "mouse") return true;
   const g = guessProduct(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`);
   if (g) return FLAT_KINDS.has(g.kind);
@@ -536,8 +532,9 @@ export function photoLiesFlat(item: DeskItem, imgAspect?: number): boolean {
   return !!imgAspect && (fa >= 1.5 || fa <= 0.67) && Math.abs(Math.log(imgAspect / fa)) < 0.3;
 }
 
-/** 눕힌 사진의 두께(cm): 키보드는 얇게, 마우스는 도톰하게 */
+/** 눕힌 사진의 두께(cm): 입력한 높이, 없으면 키보드는 얇게·마우스는 도톰하게 */
 function photoThickness(item: DeskItem) {
+  if (item.tall) return item.tall;
   const g = guessProduct(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`);
   const kind = g?.kind ?? (item.category === "mouse" ? "mouse" : item.category === "keyboard" ? "keyboard" : undefined);
   if (kind === "mouse" || kind === "mouse-vertical") return 3.2;
@@ -573,7 +570,8 @@ function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.
         g.add(plane);
       }
     } else {
-      const h = Math.min(70, w * aspect);
+      // 높이를 알면 그 높이로, 모르면 사진 비율로 세움
+      const h = item.tall ?? Math.min(70, w * aspect);
       const pw = h / aspect;
       const plane = shadow(new THREE.Mesh(new THREE.PlaneGeometry(pw, h), top));
       plane.position.set(0, h / 2, 0);
@@ -586,7 +584,7 @@ function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.
 function genericModel(ctx: ModelCtx, item: DeskItem, w: number, d: number, p: Pal): THREE.Object3D[] {
   const side = ctx.mat(p.body, { rough: 0.6 });
   const top = ctx.label(item.name, colorOf(item) === "black");
-  return [box(w, 8, d, [side, side, top, side, side, side])];
+  return [box(w, item.tall ?? 8, d, [side, side, top, side, side, side])];
 }
 
 /** 제품 하나의 3D 모형 (원점 = 제품 바닥 가운데) */

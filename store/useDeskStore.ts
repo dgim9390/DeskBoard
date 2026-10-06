@@ -60,6 +60,8 @@ export interface DeskItem {
   imageUrl?: string;
   link?: string;
   site?: string;
+  /** 책상에서 위로 솟은 높이(cm). 사진·상자 제품의 3D 표시에 씀 (없으면 자동) */
+  tall?: number;
 }
 
 /** 사용자가 링크(또는 직접 입력)로 만든 제품. "내 제품"에 보관돼 다시 쓸 수 있음 */
@@ -75,6 +77,8 @@ export interface CustomProduct {
   link?: string;
   site?: string;
   price?: number;
+  /** 높이(cm, 3D용) */
+  tall?: number;
   createdAt: number;
 }
 
@@ -145,6 +149,8 @@ interface DeskState {
   setItemColor: (id: string, color: ItemColor) => void;
   /** 제품 사진 바꾸기(배경 지운 사진 등). 같은 사진을 쓰는 "내 제품"도 함께 바꿈 */
   setItemImage: (id: string, imageUrl: string) => void;
+  /** 사진·상자 제품의 높이(cm). undefined면 자동 */
+  setItemTall: (id: string, tall: number | undefined) => void;
   detachMount: (id: string) => void;
   /** 가장 가까운 짝과 결합. 결합 후 남는 아이템 id를 반환 */
   mountNearest: (id: string) => string;
@@ -403,6 +409,8 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
 
   setItemColor: (id, color) => set((s) => ({ deskItems: s.deskItems.map((i) => (i.id === id ? { ...i, color } : i)) })),
 
+  setItemTall: (id, tall) => set((s) => ({ deskItems: s.deskItems.map((i) => (i.id === id ? { ...i, tall } : i)) })),
+
   setItemImage: (id, imageUrl) =>
     set((s) => {
       const old = s.deskItems.find((i) => i.id === id)?.imageUrl;
@@ -505,7 +513,7 @@ const history = { lastKey: null as string | null, lastTime: 0 };
 /** 책상·제품을 바꾸는 동작. 실행 전 상태를 기록해 두고, 실제로 바뀐 경우에만 되돌리기 목록에 넣음 */
 type Tracked =
   | "setDeskSize" | "setDeskMaterial" | "setLighting" | "addDeskItem" | "updateItemPosition" | "updateItemSize"
-  | "updateItemRotation" | "updateItemTransform" | "setItemColor" | "setItemImage" | "detachMount" | "mountNearest" | "reorder"
+  | "updateItemRotation" | "updateItemTransform" | "setItemColor" | "setItemImage" | "setItemTall" | "detachMount" | "mountNearest" | "reorder"
   | "removeItem" | "clearDesk" | "loadSetup" | "duplicateItem" | "applyTemplate";
 
 /** 연속 입력(크기 타이핑, 화살표 이동 등)은 1초 안이면 한 단계로 묶음 */
@@ -513,13 +521,14 @@ const COALESCE: Partial<Record<Tracked, (args: unknown[]) => string>> = {
   setDeskSize: () => "desk-size",
   updateItemSize: (a) => `size:${a[0]}`,
   updateItemPosition: (a) => `move:${a[0]}`,
+  setItemTall: (a) => `tall:${a[0]}`,
 };
 
 function trackHistory() {
   const st = useDeskStore.getState();
   const names: Tracked[] = [
     "setDeskSize", "setDeskMaterial", "setLighting", "addDeskItem", "updateItemPosition", "updateItemSize",
-    "updateItemRotation", "updateItemTransform", "setItemColor", "setItemImage", "detachMount", "mountNearest", "reorder",
+    "updateItemRotation", "updateItemTransform", "setItemColor", "setItemImage", "setItemTall", "detachMount", "mountNearest", "reorder",
     "removeItem", "clearDesk", "loadSetup", "duplicateItem", "applyTemplate",
   ];
   const wrapped: Partial<DeskState> = {};

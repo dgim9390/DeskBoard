@@ -156,6 +156,7 @@ export default function SimulatorScreen() {
           imageUrl: p.imageUrl,
           link: p.link,
           site: p.site,
+          tall: p.tall,
           ...pos,
         }),
       );

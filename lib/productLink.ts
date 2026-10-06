@@ -15,8 +15,8 @@ export interface ProductPreview {
   price: number | null;
   currency: string | null;
   description: string;
-  /** 페이지에서 찾은 크기(cm). 추정값이라 사용자가 확인해야 함 */
-  dimensions: { width: number; depth: number; text: string } | null;
+  /** 페이지에서 찾은 크기(cm). 추정값이라 사용자가 확인해야 함. height: 책상에서 위로 솟은 높이 */
+  dimensions: { width: number; depth: number; height?: number | null; all?: number[]; text: string } | null;
 }
 
 /** 배포 사이트 주소. 로컬 개발·맥 앱에서는 링크 읽기 서버로 이 주소를 씀 */
@@ -132,8 +132,8 @@ const RULES: { re: RegExp; kind: ProductKind; category: Category }[] = [
   { re: /마우스\s*패드|mouse\s*pad/i, kind: "mouse-pad", category: "accessory" },
   { re: /트랙패드|trackpad/i, kind: "trackpad", category: "accessory" },
   { re: /키보드|keyboard|키크론|keychron/i, kind: "keyboard", category: "keyboard" },
-  { re: /버티컬\s*마우스|vertical\s*mouse/i, kind: "mouse-vertical", category: "mouse" },
-  { re: /마우스|mouse/i, kind: "mouse", category: "mouse" },
+  { re: /버티컬\s*마우스|vertical\s*mouse|mx\s*vertical/i, kind: "mouse-vertical", category: "mouse" },
+  { re: /마우스|mouse|mice|mx\s*(master|anywhere|ergo)/i, kind: "mouse", category: "mouse" },
   { re: /헤드폰\s*(거치|스탠드)|headphone\s*(stand|hanger)/i, kind: "headphone-stand", category: "accessory" },
   { re: /헤드폰|헤드셋|headphone|headset/i, kind: "headphones", category: "accessory" },
   { re: /사운드\s*바|sound\s*bar/i, kind: "soundbar", category: "accessory" },
@@ -156,6 +156,26 @@ const RULES: { re: RegExp; kind: ProductKind; category: Category }[] = [
 export function guessProduct(title: string): { kind: ProductKind; category: Category } | null {
   const hit = RULES.find((r) => r.re.test(title));
   return hit ? { kind: hit.kind, category: hit.category } : null;
+}
+
+/** 책상 위에 납작하게 놓이는 종류 (3D에서 위에서 찍은 사진을 눕혀서 표시) */
+export const FLAT_KINDS = new Set<ProductKind>([
+  "keyboard", "keyboard-full", "mouse", "mouse-vertical", "trackpad", "mouse-pad", "desk-mat", "wrist-rest",
+  "notebook-pad", "macro-pad", "usbc-hub", "wireless-charger", "power-strip",
+]);
+
+/**
+ * 페이지에서 찾은 치수를 가로·깊이·높이로 정리.
+ * 마우스·키보드처럼 납작한 제품은 쇼핑몰마다 '높이'를 길이로 적기도 해서(로지텍: Height = 길이),
+ * 세 값 중 가장 작은 값을 높이로 본다. 마우스는 길쭉한 쪽이 깊이, 키보드는 긴 쪽이 가로.
+ */
+export function resolveDimensions(found: NonNullable<ProductPreview["dimensions"]>, kind: ProductKind | null) {
+  if (kind && FLAT_KINDS.has(kind) && found.all?.length === 3) {
+    const [tall, a, b] = [...found.all].sort((x, y) => x - y);
+    const mouse = kind === "mouse" || kind === "mouse-vertical";
+    return { width: mouse ? a : b, depth: mouse ? b : a, tall };
+  }
+  return { width: found.width, depth: found.depth, tall: found.height ?? null };
 }
 
 /** 크기를 못 찾았을 때 같은 종류 기본 제품의 크기 (없으면 20×20) */

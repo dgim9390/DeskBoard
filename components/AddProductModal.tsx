@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { pickImageFile, rankImages, removeBackground } from "@/lib/cutout";
-import { canReadBlockedSites, defaultSize, fetchProductPreview, guessProduct, normalizeUrl, SHAPE_CHOICES, type ProductPreview } from "@/lib/productLink";
+import { canReadBlockedSites, defaultSize, fetchProductPreview, guessProduct, normalizeUrl, resolveDimensions, SHAPE_CHOICES, type ProductPreview } from "@/lib/productLink";
 import type { Category, CustomProduct, ItemColor, ProductKind } from "@/store/useDeskStore";
 import { ProductImage } from "./ProductImage";
 
@@ -20,6 +20,12 @@ type Display = "photo" | "shape";
 type Cutout = { src: string; status: "working" } | { src: string; status: "done"; dataUrl: string } | { src: string; status: "failed"; reason: string };
 
 const fmt = (n: number) => String(Math.round(n * 10) / 10);
+/** 높이(선택): 비어 있으면 자동(undefined), 잘못된 값이면 null */
+const toTall = (t: string) => {
+  if (!t.trim()) return undefined;
+  const n = parseFloat(t.replace(",", "."));
+  return Number.isFinite(n) && n >= 0.2 && n <= 300 ? n : null;
+};
 const toNum = (t: string) => {
   const n = parseFloat(t.replace(",", "."));
   return Number.isFinite(n) && n >= 1 && n <= 300 ? n : null;
@@ -36,6 +42,7 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
   const [name, setName] = useState("");
   const [w, setW] = useState("");
   const [h, setH] = useState("");
+  const [tall, setTall] = useState(""); // 높이(3D용), 비우면 자동
   const [sizeNote, setSizeNote] = useState<{ found: boolean; text?: string } | null>(null);
   const [sizeTouched, setSizeTouched] = useState(false); // 사용자가 크기를 직접 고쳤으면 추정값으로 덮지 않음
   const [imageUrl, setImageUrl] = useState("");
@@ -61,6 +68,7 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
     setName("");
     setW("");
     setH("");
+    setTall("");
     setSizeNote(null);
     setSizeTouched(false);
     setImageUrl("");
@@ -84,19 +92,23 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
   };
 
   /** 이름을 바탕으로 모양·분류·기본 크기를 채움 (크기는 비어 있을 때만) */
-  const applyGuess = (title: string, found?: ProductPreview["dimensions"], keepSize = false) => {
-    const g = guessProduct(title);
+  const applyGuess = (title: string, found?: ProductPreview["dimensions"], keepSize = false, pageUrl = "") => {
+    // 이름에 종류가 없어도 주소(…/mice/…, keychron 등)로 알아보도록 함께 봄
+    const g = guessProduct(`${title} ${pageUrl}`);
     setShape(g && SHAPE_CHOICES.some((s) => s.kind === g.kind) ? g.kind : "generic");
     setCategory(g?.category ?? "accessory");
     if (keepSize) return;
     if (found) {
-      setW(fmt(found.width));
-      setH(fmt(found.depth));
-      setSizeNote({ found: true, text: found.text });
+      const r = resolveDimensions(found, g?.kind ?? null);
+      setW(fmt(r.width));
+      setH(fmt(r.depth));
+      setTall(r.tall ? fmt(r.tall) : "");
+      setSizeNote({ found: true, text: `${fmt(r.width)} × ${fmt(r.depth)}${r.tall ? ` × ${fmt(r.tall)}` : ""} cm` });
     } else {
       const d = defaultSize(g?.kind ?? null);
       setW(fmt(d.width));
       setH(fmt(d.height));
+      setTall("");
       setSizeNote({ found: false });
     }
   };
@@ -131,7 +143,7 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
           })
           .finally(() => token === loadToken.current && setPicking(false));
       }
-      applyGuess(title, p.dimensions);
+      applyGuess(title, p.dimensions, false, p.url);
       setEditing(true);
     } catch (e) {
       // 읽기 실패해도 링크는 살려 두고 직접 입력으로 이어감
@@ -156,7 +168,8 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
 
   const wn = toNum(w);
   const hn = toNum(h);
-  const canAdd = editing && name.trim().length > 0 && wn !== null && hn !== null && !loading;
+  const tn = toTall(tall);
+  const canAdd = editing && name.trim().length > 0 && wn !== null && hn !== null && tn !== null && !loading;
   const appReads = canReadBlockedSites();
   const photoUri = imageUrl.trim() && /^(https?:\/\/|data:image\/)/i.test(imageUrl.trim()) ? imageUrl.trim() : undefined;
 
@@ -202,6 +215,7 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
       kind: usePhoto ? "photo" : shape,
       width: wn!,
       height: hn!,
+      tall: tn ?? undefined,
       color,
       imageUrl: usePhoto ? finalPhoto : undefined,
       link,
@@ -293,12 +307,14 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
                   <Text className={label}>이름</Text>
                   <TextInput value={name} onChangeText={setName} placeholder="예: 로지텍 MX Keys S" placeholderTextColor="#52525b" accessibilityLabel="제품 이름" className={input} onBlur={() => !preview && name && applyGuess(name, undefined, sizeTouched)} />
 
-                  <Text className={label}>위에서 본 크기 (가로 × 깊이, cm)</Text>
+                  <Text className={label}>크기 (가로 × 깊이 × 높이, cm)</Text>
                   <View className="flex-row items-center">
-                    <TextInput value={w} onChangeText={(t) => { setW(t); setSizeTouched(true); }} keyboardType="decimal-pad" accessibilityLabel="가로 cm" className={`${input} text-center`} style={{ width: 72 }} />
-                    <Text className="mx-2 text-zinc-500">×</Text>
-                    <TextInput value={h} onChangeText={(t) => { setH(t); setSizeTouched(true); }} keyboardType="decimal-pad" accessibilityLabel="깊이 cm" className={`${input} text-center`} style={{ width: 72 }} />
-                    <Text className="ml-2 text-xs text-zinc-500">cm</Text>
+                    <TextInput value={w} onChangeText={(t) => { setW(t); setSizeTouched(true); }} keyboardType="decimal-pad" accessibilityLabel="가로 cm" className={`${input} text-center`} style={{ width: 62 }} />
+                    <Text className="mx-1.5 text-zinc-500">×</Text>
+                    <TextInput value={h} onChangeText={(t) => { setH(t); setSizeTouched(true); }} keyboardType="decimal-pad" accessibilityLabel="깊이 cm" className={`${input} text-center`} style={{ width: 62 }} />
+                    <Text className="mx-1.5 text-zinc-500">×</Text>
+                    <TextInput value={tall} onChangeText={setTall} placeholder="자동" placeholderTextColor="#52525b" keyboardType="decimal-pad" accessibilityLabel="높이 cm" className={`${input} text-center`} style={{ width: 62 }} />
+                    <Text className="ml-1.5 text-xs text-zinc-500">cm</Text>
                     <Pressable
                       onPress={() => {
                         setW(h);
@@ -315,11 +331,12 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
                   {sizeNote && (
                     <Text className={`mt-1.5 text-xs leading-4 ${sizeNote.found ? "text-emerald-400" : "text-amber-400"}`}>
                       {sizeNote.found
-                        ? `페이지에서 찾은 크기예요 ("${sizeNote.text}"). 높이가 섞였을 수 있으니 확인해 주세요.`
+                        ? `제품 페이지의 치수로 채웠어요 (${sizeNote.text}). 맞는지 확인해 주세요.`
                         : "크기를 찾지 못해 비슷한 제품의 크기를 넣었어요. 실제 크기로 고쳐 주세요."}
                     </Text>
                   )}
-                  {(wn === null || hn === null) && <Text className="mt-1 text-xs text-red-400">1~300cm 사이 숫자를 넣어 주세요.</Text>}
+                  {(wn === null || hn === null || tn === null) && <Text className="mt-1 text-xs text-red-400">1~300cm 사이 숫자를 넣어 주세요.</Text>}
+                  <Text className="mt-1 text-xs leading-4 text-zinc-500">높이는 3D 보기에 쓰여요. 비워 두면 자동으로 정해요.</Text>
 
                   <Text className={label}>책상에 표시할 모습</Text>
                   <View className="flex-row rounded-lg bg-zinc-950 p-1">

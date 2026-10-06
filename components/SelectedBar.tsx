@@ -106,6 +106,8 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
           min={{ w: MIN_ITEM_CM, h: MIN_ITEM_CM }}
           onChange={(w, h) => updateItemSize(item.id, w, h)}
           resetKey={item.id}
+          // 사진·상자 제품은 3D 모양을 알 수 없어 높이를 직접 정할 수 있게
+          tall={item.kind === "photo" || item.kind === "generic" ? { value: item.tall, onChange: (v) => useDeskStore.getState().setItemTall(item.id, v) } : undefined}
         />
         <View className="flex-1" />
         <Pressable
