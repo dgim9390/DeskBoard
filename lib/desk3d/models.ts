@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { guessProduct } from "@/lib/productLink";
 import type { DeskItem, ItemColor, Lighting, Mount, ProductKind } from "@/store/useDeskStore";
 
 /**
@@ -516,10 +517,38 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
   },
 };
 
-/** 사용자 제품 사진: 키보드·마우스는 바닥에 눕히고, 나머지는 세워서(입간판처럼) 표시 */
+// 위에서 찍은 사진이 자연스러운(책상 위에 납작하게 놓이는) 종류
+const FLAT_KINDS = new Set<ProductKind>([
+  "keyboard", "keyboard-full", "mouse", "mouse-vertical", "trackpad", "mouse-pad", "desk-mat", "wrist-rest",
+  "notebook-pad", "macro-pad", "usbc-hub", "wireless-charger", "power-strip",
+]);
+
+/**
+ * 사진 제품을 3D에서 눕힐지(위에서 본 사진) 세울지(정면 사진).
+ * 분류 → 이름·사이트 주소 → 사진과 놓인 자리의 비율 순서로 판단
+ */
+export function photoLiesFlat(item: DeskItem, imgAspect?: number): boolean {
+  if (item.category === "keyboard" || item.category === "mouse") return true;
+  const g = guessProduct(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`);
+  if (g) return FLAT_KINDS.has(g.kind);
+  // 자리가 길쭉하고 사진 비율도 그와 비슷하면 위에서 찍은 사진
+  const fa = item.width / item.height;
+  return !!imgAspect && (fa >= 1.5 || fa <= 0.67) && Math.abs(Math.log(imgAspect / fa)) < 0.3;
+}
+
+/** 눕힌 사진의 두께(cm): 키보드는 얇게, 마우스는 도톰하게 */
+function photoThickness(item: DeskItem) {
+  const g = guessProduct(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`);
+  const kind = g?.kind ?? (item.category === "mouse" ? "mouse" : item.category === "keyboard" ? "keyboard" : undefined);
+  if (kind === "mouse" || kind === "mouse-vertical") return 3.2;
+  if (kind === "keyboard" || kind === "keyboard-full" || kind === "macro-pad") return 2;
+  if (kind === "desk-mat" || kind === "mouse-pad") return 0.35;
+  return 1.4;
+}
+
+/** 사용자 제품 사진: 위에서 찍은 사진은 책상에 눕혀 두께를 주고, 정면 사진은 세워서(입간판처럼) 표시 */
 function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.Object3D[] {
   const g = new THREE.Group();
-  const flat = item.category === "keyboard" || item.category === "mouse";
   const base = box(w, 0.4, d, new THREE.MeshBasicMaterial({ visible: false }));
   base.castShadow = false;
   g.add(base); // 사진을 불러오기 전에도 클릭할 수 있게
@@ -527,17 +556,26 @@ function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.
   ctx.photo(item.imageUrl, (tex) => {
     const img = tex.image as { width: number; height: number };
     const aspect = img.height / img.width;
-    const mat = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.35, transparent: false, side: THREE.DoubleSide, roughness: 0.6 });
-    if (flat) {
+    const top = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.6 });
+    if (photoLiesFlat(item, img.width / img.height)) {
+      // 같은 사진을 얇게 여러 장 겹쳐 제품 윤곽 그대로 두께를 만듦 (아래 장은 어둡게 = 옆면)
       const s = Math.min(w, d / aspect);
-      const plane = shadow(new THREE.Mesh(new THREE.PlaneGeometry(s, s * aspect), mat));
-      plane.rotation.x = -Math.PI / 2;
-      plane.position.y = 0.6;
-      g.add(plane);
+      const geo = new THREE.PlaneGeometry(s, s * aspect);
+      const thick = photoThickness(item);
+      const layers = Math.max(2, Math.min(14, Math.round(thick / 0.22)));
+      const side = new THREE.MeshStandardMaterial({ map: tex, color: "#4a4a4e", alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.8 });
+      for (let k = 0; k < layers; k++) {
+        const plane = new THREE.Mesh(geo, k === layers - 1 ? top : side);
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.y = 0.05 + (thick * k) / (layers - 1);
+        plane.castShadow = k === layers - 1 || k === 0;
+        plane.receiveShadow = true;
+        g.add(plane);
+      }
     } else {
       const h = Math.min(70, w * aspect);
       const pw = h / aspect;
-      const plane = shadow(new THREE.Mesh(new THREE.PlaneGeometry(pw, h), mat));
+      const plane = shadow(new THREE.Mesh(new THREE.PlaneGeometry(pw, h), top));
       plane.position.set(0, h / 2, 0);
       g.add(plane);
     }
