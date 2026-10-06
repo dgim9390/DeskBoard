@@ -6,7 +6,7 @@
   "main": "main.js",
   "private": true,
   "scripts": {
-    "web": "cd .. && npx expo export -p web && rm -rf desktop/web && cp -R dist desktop/web",
+    "web": "cd .. && npx expo export -p web && node scripts/stamp-build.js && rm -rf desktop/web && cp -R dist desktop/web",
     "start": "npm run web && electron .",
     "dist": "npm run web && electron-builder --mac --arm64"
   },
