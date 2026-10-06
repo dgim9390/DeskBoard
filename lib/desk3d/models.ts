@@ -240,6 +240,66 @@ function streamDeck(ctx: ModelCtx, w: number, d: number, p: Pal): THREE.Object3D
   return [body, box(w * 0.7, 0.6, d * 0.7, foot, 0, 0.3, -d * 0.1), box(w * 0.5, Math.sin(tilt) * bd, 0.8, foot, 0, (Math.sin(tilt) * bd) / 2, -d * 0.4)];
 }
 
+// ── 마우스 ──────────────────────────────────────────────
+/**
+ * 마우스 모형: 반구를 늘려 손바닥이 닿는 뒤쪽이 가장 높고 앞(버튼 쪽)으로 낮아지는 곡선.
+ * 가로(w)·깊이(d)·높이(tall)는 실제 크기(cm) 그대로
+ */
+function mouseShape(w: number, d: number, tall: number, body: THREE.Material, accent: THREE.Material): THREE.Object3D[] {
+  const geo = new THREE.SphereGeometry(1, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2);
+  const pos = geo.attributes.position;
+  const hump = (zn: number) => 1 - 0.42 * ((zn + 0.25) / 1.25) ** 2; // 뒤쪽(-z)에 봉우리
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const taper = 1 - 0.08 * z; // 앞쪽이 살짝 좁음
+    pos.setXYZ(i, x * (w / 2) * taper, y * tall * hump(z), z * (d / 2));
+  }
+  geo.computeVertexNormals();
+  const shell = shadow(new THREE.Mesh(geo, body));
+  // 휠: 앞쪽 가운데, 표면에 반쯤 묻힘
+  const zn = 0.3;
+  const topY = tall * hump(zn) * Math.sqrt(1 - zn * zn);
+  const r = Math.min(0.85, w * 0.1);
+  const wheel = cyl(r, r, Math.min(0.7, w * 0.085), accent, 0, topY - r * 0.6, zn * (d / 2), 24);
+  wheel.rotation.z = Math.PI / 2;
+  // 좌우 버튼 경계: 휠 앞뒤로 가는 홈
+  const groove = box(0.06, 0.08, d * 0.2, accent, 0, tall * hump(0.66) * Math.sqrt(1 - 0.66 * 0.66) - 0.03, 0.66 * (d / 2));
+  groove.rotation.x = 0.45;
+  // 위에서는 +z(앞)에 휠을 만들었으므로, 휠·버튼이 모니터 쪽(-z)·손바닥이 사용자 쪽을 향하도록 돌림
+  const g = new THREE.Group();
+  g.add(shell, wheel, groove);
+  g.rotation.y = Math.PI;
+  return [g];
+}
+
+/** 사진의 평균 색(투명한 배경 제외). 3D 모형을 제품 색으로 칠할 때 씀 */
+function averageColor(tex: THREE.Texture): string | null {
+  const c = document.createElement("canvas");
+  c.width = c.height = 24;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  if (!g) return null;
+  try {
+    g.drawImage(tex.image as CanvasImageSource, 0, 0, 24, 24);
+    const px = g.getImageData(0, 0, 24, 24).data;
+    let r = 0;
+    let gg = 0;
+    let b = 0;
+    let n = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] < 128) continue;
+      r += px[i];
+      gg += px[i + 1];
+      b += px[i + 2];
+      n++;
+    }
+    return n ? `rgb(${Math.round(r / n)}, ${Math.round(gg / n)}, ${Math.round(b / n)})` : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── 종류별 모형 ──────────────────────────────────────────
 type Build = (ctx: ModelCtx, w: number, d: number, p: Pal, item: DeskItem) => THREE.Object3D[];
 
@@ -330,11 +390,7 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
   keyboard: (ctx, w, d, p) => keyboardModel(ctx, w, d, p, "keyboard"),
   "keyboard-full": (ctx, w, d, p) => keyboardModel(ctx, w, d, p, "keyboard-full"),
   "macro-pad": (ctx, w, d, p) => streamDeck(ctx, w, d, p),
-  mouse: (ctx, w, d, p) => {
-    const dome = shadow(new THREE.Mesh(new THREE.SphereGeometry(1, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), ctx.mat(p.body, { rough: 0.35 })));
-    dome.scale.set(w / 2, 3.6, d / 2);
-    return [dome, cyl(0.45, 0.45, 0.6, ctx.mat(p.trim), 0, 3.2, -d * 0.22, 16)];
-  },
+  mouse: (ctx, w, d, p) => mouseShape(w, d, 3.8, ctx.mat(p.body, { rough: 0.4 }), ctx.mat(p === PAL.black ? "#3a3a40" : "#b8b9be", { rough: 0.5, metal: 0.4 })),
   "mouse-vertical": (ctx, w, d, p) => {
     const dome = shadow(new THREE.Mesh(new THREE.SphereGeometry(1, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), ctx.mat(p.body, { rough: 0.35 })));
     dome.scale.set(w / 2, 7, d / 2);
@@ -543,18 +599,18 @@ function photoThickness(item: DeskItem) {
   return 1.4;
 }
 
-/** 눕힌 사진의 단면 모양: 마우스는 둥글게 솟고, 나머지는 테두리만 둥근 납작한 판 */
-function photoProfile(item: DeskItem): "dome" | "slab" {
+/** 사진 제품이 마우스인지 (분류 또는 이름·사이트 주소로) */
+function photoIsMouse(item: DeskItem) {
+  if (item.category === "mouse") return true;
   const g = guessProduct(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`);
-  const kind = g?.kind ?? (item.category === "mouse" ? "mouse" : undefined);
-  return kind === "mouse" || kind === "mouse-vertical" ? "dome" : "slab";
+  return g?.kind === "mouse" || g?.kind === "mouse-vertical";
 }
 
 /**
  * 위에서 찍은 사진을 입체로: 사진의 불투명한 부분(제품)에서 테두리까지의 거리를 재서 높이로 바꾼 곡면.
- * dome: 테두리에서 부드럽게 올라가 가운데가 가장 높음 (마우스), slab: 테두리만 둥글고 윗면은 평평 (키보드 등)
+ * 테두리만 둥글고 윗면은 평평한 판 (키보드·패드 등)
  */
-function reliefMesh(tex: THREE.Texture, sw: number, sh: number, tall: number, profile: "dome" | "slab", mat: THREE.Material) {
+function reliefMesh(tex: THREE.Texture, sw: number, sh: number, tall: number, mat: THREE.Material) {
   const img = tex.image as CanvasImageSource & { width: number; height: number };
   const N = 128; // 긴 쪽 칸 수
   const cols = sw >= sh ? N : Math.max(8, Math.round((N * sw) / sh));
@@ -589,18 +645,11 @@ function reliefMesh(tex: THREE.Texture, sw: number, sh: number, tall: number, pr
       const i = y * W + x;
       if (dist[i]) dist[i] = Math.min(dist[i], at(x + 1, y) + 1, at(x, y + 1) + 1, at(x + 1, y + 1) + 1.4, at(x - 1, y + 1) + 1.4);
     }
-  let maxD = 0;
-  for (const v of dist) if (v > maxD) maxD = v;
-  if (!maxD) return null;
+  if (!dist.some((v) => v > 0)) return null;
   const cell = sw / cols; // 칸 하나의 실제 길이(cm)
-  const bevel = Math.max(0.3, Math.min(tall, 1.2)); // 납작한 제품의 둥근 테두리 폭(cm)
+  const bevel = Math.max(0.3, Math.min(tall, 1.2)); // 둥근 테두리 폭(cm)
   const heightAt = (dv: number) => {
     if (dv <= 0) return 0;
-    if (profile === "dome") {
-      // 테두리에서 부드럽게 솟아 가운데는 완만한 둥근 등 (가운데 20%는 거의 평평)
-      const t = Math.min(1, dv / (maxD * 0.8));
-      return tall * (1 - (1 - t) ** 3);
-    }
     const t = Math.min(1, (dv * cell) / bevel);
     return tall * Math.sqrt(t * (2 - t));
   };
@@ -608,30 +657,8 @@ function reliefMesh(tex: THREE.Texture, sw: number, sh: number, tall: number, pr
   const geo = new THREE.PlaneGeometry(sw, sh, cols, rows);
   const pos = geo.attributes.position;
   // PlaneGeometry 꼭짓점은 위쪽 줄부터 왼→오 순서 = 사진 좌표와 같음
-  let hgt = new Float32Array(W * H);
+  const hgt = new Float32Array(W * H);
   for (let i = 0; i < W * H; i++) hgt[i] = heightAt(dist[i]);
-  // 둥근 모양은 이웃 칸과 두 번 평균을 내 격자 계단을 부드럽게 (바깥은 0으로 유지). 판 모양은 반듯하게 둠
-  for (let pass = 0; pass < (profile === "dome" ? 2 : 0); pass++) {
-    const next = new Float32Array(W * H);
-    for (let i = 0; i < W * H; i++) {
-      if (!dist[i]) continue;
-      const x = i % W;
-      const y = Math.floor(i / W);
-      let sum = 0;
-      let n = 0;
-      for (let dy = -1; dy <= 1; dy++)
-        for (let dx = -1; dx <= 1; dx++) {
-          const xx = x + dx;
-          const yy = y + dy;
-          if (xx >= 0 && yy >= 0 && xx < W && yy < H) {
-            sum += hgt[yy * W + xx];
-            n++;
-          }
-        }
-      next[i] = sum / n;
-    }
-    hgt = next;
-  }
   // 바닥에 가까울수록 어둡게 (책상과 닿는 곳의 그늘 + 테두리의 밝은 번짐 가리기)
   const colors = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) {
@@ -720,6 +747,19 @@ function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.
   const base = box(w, 0.4, d, new THREE.MeshBasicMaterial({ visible: false }));
   base.castShadow = false;
   g.add(base); // 사진을 불러오기 전에도 클릭할 수 있게
+  // 마우스는 사진을 입히면 모양이 어색해서 실제 크기의 마우스 모형으로 그리고, 색만 사진에서 가져옴
+  if (photoIsMouse(item)) {
+    const body = new THREE.MeshStandardMaterial({ color: "#2b2b2f", roughness: 0.45 });
+    const accent = ctx.mat("#55565c", { rough: 0.4, metal: 0.5 });
+    for (const o of mouseShape(w, d, item.tall ?? 4, body, accent)) g.add(o);
+    if (item.imageUrl) {
+      ctx.photo(item.imageUrl, (tex) => {
+        const c = averageColor(tex);
+        if (c) body.color.set(c);
+      });
+    }
+    return [g];
+  }
   if (!item.imageUrl) return [g];
   ctx.photo(item.imageUrl, (tex) => {
     const img = tex.image as { width: number; height: number };
@@ -728,7 +768,7 @@ function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.
     if (photoLiesFlat(item, img.width / img.height)) {
       // 사진 윤곽을 따라 솟은 곡면(높이 지도) 위에 사진을 입힘
       const s = Math.min(w, d / aspect);
-      const mesh = reliefMesh(tex, s, s * aspect, photoThickness(item), photoProfile(item), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, vertexColors: true, side: THREE.DoubleSide }));
+      const mesh = reliefMesh(tex, s, s * aspect, photoThickness(item), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, vertexColors: true, side: THREE.DoubleSide }));
       if (mesh) g.add(mesh);
     } else {
       // 높이를 알면 그 높이로, 모르면 사진 비율로 세움

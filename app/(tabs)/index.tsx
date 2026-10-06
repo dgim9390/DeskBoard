@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
 import { useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { DeskBar } from "@/components/DeskBar";
@@ -14,6 +14,29 @@ import { eulReul } from "@/lib/josa";
 import { suggestPosition } from "@/lib/placement";
 import { toast } from "@/lib/toast";
 import { useDeskStore, type CustomProduct } from "@/store/useDeskStore";
+
+/** 장비 추가 접힘 상태 (이 기기에만 기억) */
+const PICKER_KEY = "deskterior-ui:picker-collapsed";
+function usePickerCollapsed(): [boolean, (v: boolean) => void] {
+  const [v, setV] = useState(() => {
+    if (Platform.OS !== "web") return false;
+    try {
+      return window.localStorage.getItem(PICKER_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const set = (next: boolean) => {
+    setV(next);
+    if (Platform.OS !== "web") return;
+    try {
+      window.localStorage.setItem(PICKER_KEY, next ? "1" : "0");
+    } catch {
+      /* 저장 못 해도 이번 화면에서는 동작 */
+    }
+  };
+  return [v, set];
+}
 
 export default function SimulatorScreen() {
   const addDeskItem = useDeskStore((s) => s.addDeskItem);
@@ -164,21 +187,41 @@ export default function SimulatorScreen() {
     [addDeskItem],
   );
 
+  // 넓은 화면(맥 앱·PC)은 장비 추가를 오른쪽 세로 패널로, 좁은 화면(휴대폰)은 아래에
+  const { width: screenW } = useWindowDimensions();
+  const wide = screenW >= 900;
+  const [pickerCollapsed, setPickerCollapsed] = usePickerCollapsed();
+  const picker = (
+    <ItemPicker
+      layout={wide ? "column" : "row"}
+      collapsed={pickerCollapsed}
+      onToggleCollapsed={() => setPickerCollapsed(!pickerCollapsed)}
+      onPick={handlePick}
+      onPickCustom={placeCustom}
+      onAddLink={() => setLinkOpen(true)}
+      onRemoveCustom={setRemoving}
+    />
+  );
+  const bar = selectedItem ? (
+    <SelectedBar item={selectedItem} onDelete={() => remove(selectedItem.id)} onDuplicate={() => duplicate(selectedItem.id)} onSelect={setSelectedId} />
+  ) : (
+    <DeskBar />
+  );
+
   return (
-    <View className="flex-1 bg-zinc-950 px-3 pb-3 pt-2">
-      {/* 상단: 캔버스 (남는 공간 전부) */}
+    <View className="flex-1 bg-zinc-950 px-3 pb-3 pt-2" style={wide ? { flexDirection: "row", gap: 12 } : undefined}>
       <View style={{ flex: 1 }}>
-        <DeskCanvas selectedId={selectedId} onSelect={setSelectedId} onRequestClear={() => setClearOpen(true)} />
+        {/* 캔버스 (남는 공간 전부) */}
+        <View style={{ flex: 1 }}>
+          <DeskCanvas selectedId={selectedId} onSelect={setSelectedId} onRequestClear={() => setClearOpen(true)} />
+        </View>
+        {/* 선택/책상 바 (+ 좁은 화면이면 장비 목록) */}
+        <View className="pt-3">
+          {bar}
+          {!wide && picker}
+        </View>
       </View>
-      {/* 하단: 선택/책상 바 + 장비 리스트 (내용 높이만큼) */}
-      <View className="pt-3">
-        {selectedItem ? (
-          <SelectedBar item={selectedItem} onDelete={() => remove(selectedItem.id)} onDuplicate={() => duplicate(selectedItem.id)} onSelect={setSelectedId} />
-        ) : (
-          <DeskBar />
-        )}
-        <ItemPicker onPick={handlePick} onPickCustom={placeCustom} onAddLink={() => setLinkOpen(true)} onRemoveCustom={setRemoving} />
-      </View>
+      {wide && <View style={{ width: pickerCollapsed ? 44 : 300 }}>{picker}</View>}
 
       <AddProductModal
         visible={linkOpen}

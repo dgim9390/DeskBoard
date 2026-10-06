@@ -15,6 +15,7 @@ import { LIGHTING, LightingOverlay } from "./LightingOverlay";
 const LIGHTING_ORDER: Lighting[] = ["day", "evening", "night"];
 
 const PAD = 30; // 캔버스 가장자리 여백 (치수 표시 공간)
+const PAD_TOP = 58; // 위쪽은 도구 버튼에 가리지 않게 더 띄움
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -64,11 +65,11 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
   const onLayout = (e: LayoutChangeEvent) => setSize(e.nativeEvent.layout);
 
   // 책상 전체가 화면에 들어오도록 cm → px 축척 계산
-  const scale = size.width > 0 ? Math.max(0.1, Math.min((size.width - PAD * 2) / desk.width, (size.height - PAD * 2) / desk.depth)) : 0;
+  const scale = size.width > 0 ? Math.max(0.1, Math.min((size.width - PAD * 2) / desk.width, (size.height - PAD_TOP - PAD) / desk.depth)) : 0;
   const dw = desk.width * scale;
   const dd = desk.depth * scale;
   const left = (size.width - dw) / 2;
-  const top = (size.height - dd) / 2;
+  const top = PAD_TOP + (size.height - PAD_TOP - PAD - dd) / 2;
   const room = LIGHTING[lighting].room;
 
   const saveImage = async () => {
