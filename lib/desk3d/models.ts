@@ -543,6 +543,177 @@ function photoThickness(item: DeskItem) {
   return 1.4;
 }
 
+/** 눕힌 사진의 단면 모양: 마우스는 둥글게 솟고, 나머지는 테두리만 둥근 납작한 판 */
+function photoProfile(item: DeskItem): "dome" | "slab" {
+  const g = guessProduct(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`);
+  const kind = g?.kind ?? (item.category === "mouse" ? "mouse" : undefined);
+  return kind === "mouse" || kind === "mouse-vertical" ? "dome" : "slab";
+}
+
+/**
+ * 위에서 찍은 사진을 입체로: 사진의 불투명한 부분(제품)에서 테두리까지의 거리를 재서 높이로 바꾼 곡면.
+ * dome: 테두리에서 부드럽게 올라가 가운데가 가장 높음 (마우스), slab: 테두리만 둥글고 윗면은 평평 (키보드 등)
+ */
+function reliefMesh(tex: THREE.Texture, sw: number, sh: number, tall: number, profile: "dome" | "slab", mat: THREE.Material) {
+  const img = tex.image as CanvasImageSource & { width: number; height: number };
+  const N = 128; // 긴 쪽 칸 수
+  const cols = sw >= sh ? N : Math.max(8, Math.round((N * sw) / sh));
+  const rows = sw >= sh ? Math.max(8, Math.round((N * sh) / sw)) : N;
+  // 사진의 투명도를 격자 크기로 읽기
+  const c = document.createElement("canvas");
+  c.width = cols + 1;
+  c.height = rows + 1;
+  const g2 = c.getContext("2d", { willReadFrequently: true });
+  if (!g2) return null;
+  let px: Uint8ClampedArray;
+  try {
+    g2.drawImage(img, 0, 0, c.width, c.height);
+    px = g2.getImageData(0, 0, c.width, c.height).data;
+  } catch {
+    return null;
+  }
+  const W = cols + 1;
+  const H = rows + 1;
+  // 안쪽 칸까지의 거리(칸 단위): 두 번 훑는 거리 변환 (대각선 1.4)
+  const INF = 1e9;
+  const dist = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) dist[i] = px[i * 4 + 3] > 90 ? INF : 0;
+  const at = (x: number, y: number) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : dist[y * W + x]);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (dist[i]) dist[i] = Math.min(dist[i], at(x - 1, y) + 1, at(x, y - 1) + 1, at(x - 1, y - 1) + 1.4, at(x + 1, y - 1) + 1.4);
+    }
+  for (let y = H - 1; y >= 0; y--)
+    for (let x = W - 1; x >= 0; x--) {
+      const i = y * W + x;
+      if (dist[i]) dist[i] = Math.min(dist[i], at(x + 1, y) + 1, at(x, y + 1) + 1, at(x + 1, y + 1) + 1.4, at(x - 1, y + 1) + 1.4);
+    }
+  let maxD = 0;
+  for (const v of dist) if (v > maxD) maxD = v;
+  if (!maxD) return null;
+  const cell = sw / cols; // 칸 하나의 실제 길이(cm)
+  const bevel = Math.max(0.3, Math.min(tall, 1.2)); // 납작한 제품의 둥근 테두리 폭(cm)
+  const heightAt = (dv: number) => {
+    if (dv <= 0) return 0;
+    if (profile === "dome") {
+      // 테두리에서 부드럽게 솟아 가운데는 완만한 둥근 등 (가운데 20%는 거의 평평)
+      const t = Math.min(1, dv / (maxD * 0.8));
+      return tall * (1 - (1 - t) ** 3);
+    }
+    const t = Math.min(1, (dv * cell) / bevel);
+    return tall * Math.sqrt(t * (2 - t));
+  };
+
+  const geo = new THREE.PlaneGeometry(sw, sh, cols, rows);
+  const pos = geo.attributes.position;
+  // PlaneGeometry 꼭짓점은 위쪽 줄부터 왼→오 순서 = 사진 좌표와 같음
+  let hgt = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) hgt[i] = heightAt(dist[i]);
+  // 둥근 모양은 이웃 칸과 두 번 평균을 내 격자 계단을 부드럽게 (바깥은 0으로 유지). 판 모양은 반듯하게 둠
+  for (let pass = 0; pass < (profile === "dome" ? 2 : 0); pass++) {
+    const next = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+      if (!dist[i]) continue;
+      const x = i % W;
+      const y = Math.floor(i / W);
+      let sum = 0;
+      let n = 0;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx;
+          const yy = y + dy;
+          if (xx >= 0 && yy >= 0 && xx < W && yy < H) {
+            sum += hgt[yy * W + xx];
+            n++;
+          }
+        }
+      next[i] = sum / n;
+    }
+    hgt = next;
+  }
+  // 바닥에 가까울수록 어둡게 (책상과 닿는 곳의 그늘 + 테두리의 밝은 번짐 가리기)
+  const colors = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    pos.setZ(i, hgt[i]);
+    const k = 0.35 + 0.65 * Math.min(1, hgt[i] / Math.max(0.3, tall * 0.4));
+    colors[i * 3] = colors[i * 3 + 1] = colors[i * 3 + 2] = k;
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  // 제품 칸과 바로 바깥 한 줄(옆면 바닥)만 남김. 바깥 줄은 가장 가까운 제품 칸의 색을 써서
+  // 투명 테두리에 생기는 톱니 모양 없이 옆면이 매끈하게 내려옴
+  const uv = geo.attributes.uv;
+  const keep = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    if (dist[i]) {
+      keep[i] = 1;
+      continue;
+    }
+    const x = i % W;
+    const y = Math.floor(i / W);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+      const xx = x + dx;
+      const yy = y + dy;
+      if (xx >= 0 && yy >= 0 && xx < W && yy < H && dist[yy * W + xx]) {
+        keep[i] = 2;
+        uv.setXY(i, uv.getX(yy * W + xx), uv.getY(yy * W + xx));
+        break;
+      }
+    }
+  }
+  // 윤곽선 다듬기: 테두리 꼭짓점(바깥 줄, 그 안쪽 줄)을 같은 줄의 이웃 평균 쪽으로 옮겨 계단 모양을 매끈하게
+  const ring = new Uint8Array(W * H); // 1: 바깥 줄, 2: 안쪽 첫 줄
+  for (let i = 0; i < W * H; i++) {
+    if (keep[i] === 2) ring[i] = 1;
+    else if (keep[i] === 1) {
+      const x = i % W;
+      const y = Math.floor(i / W);
+      if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => keep[(y + dy) * W + (x + dx)] === 2)) ring[i] = 2;
+    }
+  }
+  for (let iter = 0; iter < 4; iter++) {
+    const nx = new Float32Array(W * H);
+    const ny = new Float32Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+      if (!ring[i]) continue;
+      const x = i % W;
+      const y = Math.floor(i / W);
+      let sx = pos.getX(i);
+      let sy = pos.getY(i);
+      let n = 1;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx;
+          const yy = y + dy;
+          const j = yy * W + xx;
+          if ((dx || dy) && xx >= 0 && yy >= 0 && xx < W && yy < H && ring[j] === ring[i]) {
+            sx += pos.getX(j);
+            sy += pos.getY(j);
+            n++;
+          }
+        }
+      nx[i] = sx / n;
+      ny[i] = sy / n;
+    }
+    for (let i = 0; i < W * H; i++) if (ring[i]) pos.setXY(i, nx[i], ny[i]);
+  }
+
+  const src = geo.index!.array;
+  const index: number[] = [];
+  for (let t = 0; t < src.length; t += 3) {
+    const [a, b, c] = [src[t], src[t + 1], src[t + 2]];
+    if (keep[a] && keep[b] && keep[c] && (keep[a] === 1 || keep[b] === 1 || keep[c] === 1)) index.push(a, b, c);
+  }
+  geo.setIndex(index);
+  geo.computeVertexNormals();
+  geo.rotateX(-Math.PI / 2); // 사진 위쪽 = 책상 뒤쪽
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = 0.05;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
 /** 사용자 제품 사진: 위에서 찍은 사진은 책상에 눕혀 두께를 주고, 정면 사진은 세워서(입간판처럼) 표시 */
 function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.Object3D[] {
   const g = new THREE.Group();
@@ -555,20 +726,10 @@ function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.
     const aspect = img.height / img.width;
     const top = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.6 });
     if (photoLiesFlat(item, img.width / img.height)) {
-      // 같은 사진을 얇게 여러 장 겹쳐 제품 윤곽 그대로 두께를 만듦 (아래 장은 어둡게 = 옆면)
+      // 사진 윤곽을 따라 솟은 곡면(높이 지도) 위에 사진을 입힘
       const s = Math.min(w, d / aspect);
-      const geo = new THREE.PlaneGeometry(s, s * aspect);
-      const thick = photoThickness(item);
-      const layers = Math.max(2, Math.min(14, Math.round(thick / 0.22)));
-      const side = new THREE.MeshStandardMaterial({ map: tex, color: "#4a4a4e", alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.8 });
-      for (let k = 0; k < layers; k++) {
-        const plane = new THREE.Mesh(geo, k === layers - 1 ? top : side);
-        plane.rotation.x = -Math.PI / 2;
-        plane.position.y = 0.05 + (thick * k) / (layers - 1);
-        plane.castShadow = k === layers - 1 || k === 0;
-        plane.receiveShadow = true;
-        g.add(plane);
-      }
+      const mesh = reliefMesh(tex, s, s * aspect, photoThickness(item), photoProfile(item), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, vertexColors: true, side: THREE.DoubleSide }));
+      if (mesh) g.add(mesh);
     } else {
       // 높이를 알면 그 높이로, 모르면 사진 비율로 세움
       const h = item.tall ?? Math.min(70, w * aspect);
