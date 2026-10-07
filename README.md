@@ -6,10 +6,10 @@
 
 데스크보드 · 실제 치수 기반의 데스크 셋업 시뮬레이터
 
-[![Download](https://img.shields.io/badge/Download-macOS_.dmg-6366F1?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/dgim9390/deskterior/releases/latest)
+[![Download](https://img.shields.io/badge/Download-macOS_.dmg-6366F1?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/dgim9390/DeskBoard/releases/latest)
 [![Web](https://img.shields.io/badge/Web-브라우저에서_사용-18181B?style=for-the-badge&logo=vercel&logoColor=white)](https://deskterior-one.vercel.app)
 
-[![Release](https://img.shields.io/github/v/release/dgim9390/deskterior?style=flat-square&color=6366F1&label=release)](https://github.com/dgim9390/deskterior/releases/latest)
+[![Release](https://img.shields.io/github/v/release/dgim9390/DeskBoard?style=flat-square&color=6366F1&label=release)](https://github.com/dgim9390/DeskBoard/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-macOS_(Apple_Silicon)_|_Web-000000?style=flat-square)
 ![Expo](https://img.shields.io/badge/Expo-React_Native-000020?style=flat-square&logo=expo)
 ![three.js](https://img.shields.io/badge/three.js-3D-000000?style=flat-square&logo=threedotjs)
@@ -47,7 +47,7 @@ macOS 앱과 웹에서 동일하게 동작하고, 로그인하면 저장한 셋�
 
 **macOS (Apple Silicon 전용, M1 이후 모델)**
 
-1. [Releases](https://github.com/dgim9390/deskterior/releases/latest) 페이지의 Assets에서 `DeskBoard-x.x.x-arm64.dmg`를 다운로드합니다.
+1. [Releases](https://github.com/dgim9390/DeskBoard/releases/latest) 페이지의 Assets에서 `DeskBoard-x.x.x-arm64.dmg`를 다운로드합니다.
 2. `.dmg` 파일을 열고 DeskBoard를 Applications 폴더로 드래그합니다.
 3. 응용 프로그램 폴더에서 DeskBoard를 실행합니다.
 

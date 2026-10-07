@@ -19,8 +19,8 @@ const path = require("node:path");
 
 // 개발 중에만 다른 주소로 시험할 수 있게 허용 (배포된 앱은 항상 고정 주소)
 const REMOTE = (!app.isPackaged && process.env.DESKTERIOR_WEB_URL) || "https://deskterior-one.vercel.app";
-const RELEASES_API = "https://api.github.com/repos/dgim9390/deskterior/releases/latest";
-const RELEASES_PAGE = "https://github.com/dgim9390/deskterior/releases/latest";
+const RELEASES_API = "https://api.github.com/repos/dgim9390/DeskBoard/releases/latest";
+const RELEASES_PAGE = "https://github.com/dgim9390/DeskBoard/releases/latest";
 
 const liveRoot = () => path.join(app.getPath("userData"), "web-live");
 const stateFile = () => path.join(liveRoot(), "state.json");
