@@ -180,6 +180,7 @@ export default function SimulatorScreen() {
           link: p.link,
           site: p.site,
           tall: p.tall,
+          model: p.model,
           ...pos,
         }),
       );

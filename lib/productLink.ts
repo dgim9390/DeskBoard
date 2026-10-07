@@ -126,6 +126,25 @@ const RULES: { re: RegExp; kind: ProductKind; category: Category }[] = [
   { re: /마우스|mouse|mice|mx\s*(master|anywhere|ergo)/i, kind: "mouse", category: "mouse" },
   { re: /헤드폰\s*(거치|스탠드)|headphone\s*(stand|hanger)/i, kind: "headphone-stand", category: "accessory" },
   { re: /헤드폰|헤드셋|headphone|headset/i, kind: "headphones", category: "accessory" },
+  { re: /스피커\s*(받침|스탠드|거치|선반)|speaker\s*(stand|riser|pad)|isolation\s*pad/i, kind: "speaker-stand", category: "accessory" },
+  { re: /웹\s*캠|웹\s*카메라|webcam|web\s*cam|brio|c920|c922/i, kind: "webcam", category: "accessory" },
+  { re: /키\s*라이트|링\s*라이트|방송\s*조명|key\s*light|ring\s*light|elgato\s*light/i, kind: "key-light", category: "accessory" },
+  { re: /무드\s*등|수면\s*등|mood\s*light|night\s*light/i, kind: "mood-light", category: "accessory" },
+  { re: /캔들|양초|candle|디퓨저|diffuser/i, kind: "candle", category: "accessory" },
+  { re: /데스크\s*(선반|쉘프|셸프)|책상\s*선반|desk\s*shelf|desktop\s*shelf/i, kind: "desk-shelf", category: "accessory" },
+  { re: /오디오\s*인터페이스|audio\s*interface|\bdac\b|앰프|scarlett|focusrite/i, kind: "audio-interface", category: "accessory" },
+  { re: /드로잉\s*태블릿|펜\s*태블릿|타블렛|wacom|와콤|drawing\s*tablet|pen\s*tablet/i, kind: "drawing-tablet", category: "accessory" },
+  { re: /숫자\s*키\s*패드|텐\s*키|넘패드|numpad|number\s*pad|numeric\s*keypad/i, kind: "numpad", category: "keyboard" },
+  { re: /게임\s*패드|컨트롤러|조이\s*패드|gamepad|controller|dualsense|듀얼\s*센스/i, kind: "gamepad", category: "accessory" },
+  { re: /맥\s*미니|맥\s*스튜디오|mac\s*mini|mac\s*studio|미니\s*pc|mini\s*pc|nuc\b/i, kind: "mini-pc", category: "accessory" },
+  { re: /본체|데스크탑\s*pc|게이밍\s*pc|pc\s*케이스|미들\s*타워|tower|pc\s*case|desktop\s*pc/i, kind: "pc-tower", category: "accessory" },
+  { re: /펜\s*꽂이|연필\s*꽂이|pen\s*(cup|holder)|pencil\s*cup/i, kind: "pen-cup", category: "accessory" },
+  { re: /북\s*엔드|bookend|책\s*꽂이|book\s*stand/i, kind: "books", category: "accessory" },
+  { re: /액자|사진\s*틀|photo\s*frame|picture\s*frame/i, kind: "photo-frame", category: "accessory" },
+  { re: /탁상\s*달력|달력|calendar/i, kind: "calendar", category: "accessory" },
+  { re: /에어팟|버즈|무선\s*이어폰|airpods|earbuds|galaxy\s*buds/i, kind: "earbuds", category: "accessory" },
+  { re: /텀블러|보온병|tumbler|water\s*bottle|물병/i, kind: "tumbler", category: "accessory" },
+  { re: /선풍기|서큘레이터|desk\s*fan|circulator/i, kind: "desk-fan", category: "accessory" },
   { re: /사운드\s*바|sound\s*bar/i, kind: "soundbar", category: "accessory" },
   { re: /스피커|speaker/i, kind: "speaker", category: "accessory" },
   { re: /마이크|microphone|\bmic\b/i, kind: "mic-arm", category: "accessory" },
@@ -172,6 +191,72 @@ export function resolveDimensions(found: NonNullable<ProductPreview["dimensions"
 export function defaultSize(kind: ProductKind | null): { width: number; height: number } {
   const entry = kind ? CATALOG.find((e) => e.kind === kind) : undefined;
   return entry ? { width: entry.width, height: entry.height } : { width: 20, height: 20 };
+}
+
+/**
+ * 사진 제품이 3D에서 쓸 모형 (종류별로 통일된 모형을 실제 크기·높이·사진 색에 맞춰 그림).
+ * 앞쪽일수록 자주 쓰는 것
+ */
+export const MODEL_CHOICES: { kind: ProductKind; label: string }[] = [
+  { kind: "monitor", label: "모니터" },
+  { kind: "ultrawide", label: "울트라와이드" },
+  { kind: "keyboard", label: "키보드" },
+  { kind: "keyboard-full", label: "풀사이즈 키보드" },
+  { kind: "mouse", label: "마우스" },
+  { kind: "trackpad", label: "트랙패드" },
+  { kind: "laptop", label: "노트북" },
+  { kind: "macbook-closed", label: "덮은 노트북" },
+  { kind: "speaker", label: "스피커" },
+  { kind: "speaker-stand", label: "스피커 받침대" },
+  { kind: "soundbar", label: "사운드바" },
+  { kind: "headphones", label: "헤드폰" },
+  { kind: "headphone-stand", label: "헤드폰 거치대" },
+  { kind: "mic-arm", label: "마이크" },
+  { kind: "lamp", label: "스탠드 조명" },
+  { kind: "light-bar", label: "모니터 라이트바" },
+  { kind: "monitor-riser", label: "모니터 받침대" },
+  { kind: "laptop-stand", label: "노트북 받침대" },
+  { kind: "laptop-vertical-stand", label: "수직 거치대" },
+  { kind: "tablet-stand", label: "태블릿" },
+  { kind: "phone-stand", label: "폰 거치대" },
+  { kind: "macro-pad", label: "스트림덱" },
+  { kind: "desk-mat", label: "데스크 매트" },
+  { kind: "mouse-pad", label: "마우스 패드" },
+  { kind: "wrist-rest", label: "손목 받침대" },
+  { kind: "usbc-hub", label: "허브" },
+  { kind: "wireless-charger", label: "무선 충전기" },
+  { kind: "power-strip", label: "멀티탭" },
+  { kind: "desk-organizer", label: "정리함" },
+  { kind: "notebook-pad", label: "노트" },
+  { kind: "plant", label: "화분" },
+  { kind: "mug", label: "컵" },
+  { kind: "clock", label: "시계" },
+  { kind: "humidifier", label: "가습기" },
+  { kind: "pc-tower", label: "PC 본체" },
+  { kind: "mini-pc", label: "미니 PC" },
+  { kind: "webcam", label: "웹캠" },
+  { kind: "gamepad", label: "게임패드" },
+  { kind: "numpad", label: "숫자 키패드" },
+  { kind: "drawing-tablet", label: "드로잉 태블릿" },
+  { kind: "audio-interface", label: "오디오 인터페이스" },
+  { kind: "key-light", label: "키라이트" },
+  { kind: "mood-light", label: "무드등" },
+  { kind: "candle", label: "캔들" },
+  { kind: "desk-shelf", label: "데스크 선반" },
+  { kind: "pen-cup", label: "펜꽂이" },
+  { kind: "books", label: "책" },
+  { kind: "photo-frame", label: "액자" },
+  { kind: "calendar", label: "달력" },
+  { kind: "earbuds", label: "이어폰" },
+  { kind: "tumbler", label: "텀블러" },
+  { kind: "desk-fan", label: "선풍기" },
+  { kind: "generic", label: "상자(기타)" },
+];
+
+/** 이름·주소로 3D 모형 추정 (모르면 null) */
+export function guessModel(text: string): ProductKind | null {
+  const g = guessProduct(text);
+  return g && MODEL_CHOICES.some((m) => m.kind === g.kind) ? g.kind : g?.kind === "macbook-open" ? "laptop" : null;
 }
 
 /** 그림으로 표시할 때 고를 수 있는 모양 */

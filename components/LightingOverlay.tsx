@@ -86,6 +86,17 @@ function lightsOf(i: DeskItem): Light[] {
       return [at(0, 0, 7, 7, "cool", 0.3)];
     case "macro-pad":
       return [at(0, 0, 9, 7, "purple", 0.35)];
+    case "key-light":
+      // 패널이 사용자 쪽을 비춤
+      return [at(0, h * 0.5 + 16, Math.max(26, w * 1.4), 22, "white", 0.9)];
+    case "mood-light":
+      return [at(0, 0, 22, 22, "warm", 0.8)];
+    case "candle":
+      return [at(0, 0, 14, 14, "warm", 0.6)];
+    case "pc-tower":
+      return [at(-w * 0.5, 0, 14, h * 0.45, "purple", 0.45)];
+    case "audio-interface":
+      return [at(0, 0, 8, 6, "cool", 0.25)];
     default:
       return [];
   }

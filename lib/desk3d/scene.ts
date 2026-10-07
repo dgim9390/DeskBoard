@@ -2,8 +2,8 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { imageProxyUrl } from "@/lib/productLink";
 import type { DeskItem, DeskMaterial, DeskSize, Lighting } from "@/store/useDeskStore";
-import { buildItem, monitorTop, SUPPORT_TOP, type MatOpts, type ModelCtx } from "./models";
-import { clockTexture, deskTexture, floorTexture, labelTexture, screenTexture } from "./textures";
+import { buildItem, monitorTop, supportTop, type MatOpts, type ModelCtx } from "./models";
+import { artTexture, calendarTexture, clockTexture, deskTexture, floorTexture, labelTexture, screenTexture } from "./textures";
 
 /**
  * 책상 3D 보기 (three.js, 웹·맥 앱 전용).
@@ -90,6 +90,10 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
   screenMat.userData.cached = true;
   const clockMat = new THREE.MeshBasicMaterial({ map: clockTexture() });
   clockMat.userData.cached = true;
+  const artMat = new THREE.MeshStandardMaterial({ map: artTexture(), roughness: 0.5 });
+  artMat.userData.cached = true;
+  const calendarMat = new THREE.MeshStandardMaterial({ map: calendarTexture(), roughness: 0.8 });
+  calendarMat.userData.cached = true;
   const labelCache = new Map<string, THREE.Material>();
   const photoCache = new Map<string, Promise<THREE.Texture | null>>();
   const loader = new THREE.TextureLoader();
@@ -268,6 +272,8 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
       mat,
       screen: screenMat,
       clock: clockMat,
+      art: artMat,
+      calendar: calendarMat,
       label: (text, dark) => {
         const k = `${text}|${dark}`;
         let m = labelCache.get(k);
@@ -290,8 +296,8 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
     };
 
     // 받침(데스크 매트·모니터 받침대) 위에 놓인 제품은 그 높이만큼 올림. 받침끼리는 낮은 것 위에 높은 것
-    const topOf = (i: DeskItem) => SUPPORT_TOP[i.kind!] ?? 0;
-    const supports = items.filter((i) => i.kind && SUPPORT_TOP[i.kind] !== undefined).sort((a, b) => topOf(a) - topOf(b));
+    const topOf = (i: DeskItem) => supportTop(i) ?? 0;
+    const supports = items.filter((i) => supportTop(i) !== undefined).sort((a, b) => topOf(a) - topOf(b));
     const supportBase = new Map<string, number>();
     const restOn = (i: DeskItem, pool: DeskItem[]) => {
       const c = center(i, desk);
@@ -310,7 +316,7 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
       obj.rotation.y = (-item.rotation * Math.PI) / 180;
 
       // 라이트바: 겹친 모니터 위에 올림
-      if (item.kind === "light-bar") {
+      if (item.kind === "light-bar" || item.kind === "webcam") {
         const host = monitors.find((m) => contains(m, desk, c.x, c.z));
         if (host) {
           const mc = center(host, desk);
@@ -410,7 +416,7 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
       el.removeEventListener("pointerup", onUp);
       controls.dispose();
       disposeTree(scene);
-      for (const m of [...matCache.values(), ...labelCache.values(), screenMat, clockMat]) disposeMaterial(m, true);
+      for (const m of [...matCache.values(), ...labelCache.values(), screenMat, clockMat, artMat, calendarMat]) disposeMaterial(m, true);
       for (const p of photoCache.values()) void p.then((t) => t?.dispose());
       floorTex.dispose();
       renderer.dispose();

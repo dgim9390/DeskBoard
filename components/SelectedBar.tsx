@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Linking, Pressable, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { isCutout, removeBackground } from "@/lib/cutout";
+import { guessModel, MODEL_CHOICES } from "@/lib/productLink";
 import { toast } from "@/lib/toast";
 import { MIN_ITEM_CM, defaultColor, findPartner, reorderTarget, useDeskStore, type DeskItem, type ItemColor } from "@/store/useDeskStore";
 import { SizeFields } from "./SizeFields";
@@ -45,11 +46,18 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
   const mountNearest = useDeskStore((s) => s.mountNearest);
   const reorder = useDeskStore((s) => s.reorder);
   const [cutting, setCutting] = useState(false);
+  const [modelOpen, setModelOpen] = useState(false);
+  useEffect(() => setModelOpen(false), [item.id]); // 다른 제품을 고르면 목록 닫기
   const deskItems = useDeskStore((s) => s.deskItems);
   const partner = findPartner(deskItems, item);
   const canForward = reorderTarget(deskItems, item.id, "forward") >= 0;
   const canBackward = reorderTarget(deskItems, item.id, "backward") >= 0;
   const color = item.color ?? defaultColor(item.kind);
+
+  // 사진 제품의 3D 모양: 직접 고른 것, 아니면 이름으로 추정한 것(자동)
+  const autoModel = item.kind === "photo" ? guessModel(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`) ?? (item.category === "mouse" ? "mouse" : item.category === "keyboard" ? "keyboard" : null) : null;
+  const modelLabel = (k: string | null | undefined) => MODEL_CHOICES.find((m) => m.kind === k)?.label;
+  const modelText = item.model ? modelLabel(item.model) : autoModel ? `자동(${modelLabel(autoModel)})` : "사진 입체";
 
   // 예전에 넣은 사진(배경 있음)도 나중에 배경을 지울 수 있게
   const canCut = item.kind === "photo" && !!item.imageUrl && !isCutout(item.imageUrl);
@@ -143,9 +151,33 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
             onPress={() => onSelect(mountNearest(item.id))}
           />
         ) : null}
+        {item.kind === "photo" && <Chip icon="cube-outline" label={`3D: ${modelText}`} onPress={() => setModelOpen((v) => !v)} />}
         {canCut && <Chip icon="cut-outline" label={cutting ? "지우는 중…" : "배경 지우기"} onPress={cutBackground} disabled={cutting} />}
         {item.link && <Chip icon="open-outline" label="제품 페이지" onPress={() => Linking.openURL(item.link!)} />}
       </View>
+
+      {modelOpen && item.kind === "photo" && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: 8 }}>
+          {[{ kind: undefined, label: "자동" }, ...MODEL_CHOICES].map((m) => {
+            const on = item.model === m.kind;
+            return (
+              <Pressable
+                key={m.kind ?? "auto"}
+                onPress={() => {
+                  useDeskStore.getState().setItemModel(item.id, m.kind);
+                  setModelOpen(false);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`3D 모양 ${m.label}`}
+                accessibilityState={{ selected: on }}
+                className={`rounded-lg border px-2.5 py-1.5 ${on ? "border-indigo-400 bg-indigo-500/20" : "border-zinc-700 active:bg-zinc-800"}`}
+              >
+                <Text className={`text-xs ${on ? "font-semibold text-indigo-200" : "text-zinc-300"}`}>{m.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
     </View>
   );
 }

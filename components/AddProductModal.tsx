@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { pickImageFile, rankImages, removeBackground } from "@/lib/cutout";
-import { defaultSize, fetchProductPreview, guessProduct, normalizeUrl, resolveDimensions, SHAPE_CHOICES, type ProductPreview } from "@/lib/productLink";
+import { defaultSize, fetchProductPreview, guessModel, guessProduct, MODEL_CHOICES, normalizeUrl, resolveDimensions, SHAPE_CHOICES, type ProductPreview } from "@/lib/productLink";
 import type { Category, CustomProduct, ItemColor, ProductKind } from "@/store/useDeskStore";
 import { ProductImage } from "./ProductImage";
 
@@ -50,6 +50,9 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
   const [shape, setShape] = useState<ProductKind>("generic");
   const [category, setCategory] = useState<Category>("accessory");
   const [color, setColor] = useState<ItemColor>("black");
+  /** 사진 제품이 3D에서 쓸 모형 (null: 모름 → 사진을 입체로) */
+  const [model, setModel] = useState<ProductKind | null>(null);
+  const [modelTouched, setModelTouched] = useState(false); // 직접 고르면 이름으로 덮지 않음
   const [cutout, setCutout] = useState<Cutout | null>(null);
   const [useCutout, setUseCutout] = useState(true);
   /** 페이지의 사진 후보와, 그중 깔끔한 사진을 찾는 중인지 */
@@ -76,6 +79,8 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
     setShape("generic");
     setCategory("accessory");
     setColor("black");
+    setModel(null);
+    setModelTouched(false);
     setCutout(null);
     setUseCutout(true);
     setCandidates([]);
@@ -91,12 +96,19 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
     setDisplay("photo");
   };
 
+  // 이름을 고칠 때마다 3D 모양 다시 추정 (직접 고른 경우 제외)
+  useEffect(() => {
+    if (!modelTouched && name.trim()) setModel(guessModel(`${name} ${url}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name]);
+
   /** 이름을 바탕으로 모양·분류·기본 크기를 채움 (크기는 비어 있을 때만) */
   const applyGuess = (title: string, found?: ProductPreview["dimensions"], keepSize = false, pageUrl = "") => {
     // 이름에 종류가 없어도 주소(…/mice/…, keychron 등)로 알아보도록 함께 봄
     const g = guessProduct(`${title} ${pageUrl}`);
     setShape(g && SHAPE_CHOICES.some((s) => s.kind === g.kind) ? g.kind : "generic");
     setCategory(g?.category ?? "accessory");
+    if (!modelTouched) setModel(guessModel(`${title} ${pageUrl}`));
     if (keepSize) return;
     if (found) {
       const r = resolveDimensions(found, g?.kind ?? null);
@@ -215,6 +227,7 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
       width: wn!,
       height: hn!,
       tall: tn ?? undefined,
+      model: usePhoto ? model ?? undefined : undefined,
       color,
       imageUrl: usePhoto ? finalPhoto : undefined,
       link,
@@ -441,6 +454,35 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
                         {photoUri
                           ? "상품 페이지의 대표 사진이에요. 흰 배경 사진이면 배경을 자동으로 지워요."
                           : "사진이 없으면 이름이 적힌 상자로 표시돼요. 상품 사진을 우클릭해 '이미지 주소 복사'로 넣거나, 저장한 사진을 올릴 수 있어요."}
+                      </Text>
+
+                      {/* 3D 모양: 종류별 통일된 모형을 실제 크기·사진 색으로 */}
+                      <Text className={label}>3D 모양</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                        {/* 고른(추정한) 모양을 맨 앞에 */}
+                        {[...MODEL_CHOICES.filter((m) => m.kind === model), ...MODEL_CHOICES.filter((m) => m.kind !== model)].map((m) => {
+                          const on = model === m.kind;
+                          return (
+                            <Pressable
+                              key={m.kind}
+                              onPress={() => {
+                                setModelTouched(true);
+                                setModel(on ? null : m.kind);
+                              }}
+                              accessibilityRole="button"
+                              accessibilityLabel={`3D 모양 ${m.label}`}
+                              accessibilityState={{ selected: on }}
+                              className={`rounded-lg border px-2.5 py-1.5 ${on ? "border-indigo-400 bg-indigo-500/20" : "border-zinc-700 active:bg-zinc-800"}`}
+                            >
+                              <Text className={`text-xs ${on ? "font-semibold text-indigo-200" : "text-zinc-300"}`}>{m.label}</Text>
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                      <Text className="mt-1.5 text-xs leading-4 text-zinc-500">
+                        {model
+                          ? "3D에서는 이 종류의 모형을 입력한 크기와 사진 색으로 보여줘요."
+                          : "고르지 않으면 3D에서 사진을 입체로 보여줘요. 맞는 종류를 고르면 더 실제처럼 보여요."}
                       </Text>
                     </View>
                   ) : (

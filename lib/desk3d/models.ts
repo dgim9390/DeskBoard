@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { FLAT_KINDS, guessProduct } from "@/lib/productLink";
+import { FLAT_KINDS, guessModel, guessProduct } from "@/lib/productLink";
 import type { DeskItem, ItemColor, Lighting, Mount, ProductKind } from "@/store/useDeskStore";
 
 /**
@@ -12,6 +12,8 @@ export interface ModelCtx {
   mat: (color: string, o?: MatOpts) => THREE.Material;
   screen: THREE.Material;
   clock: THREE.Material;
+  art: THREE.Material;
+  calendar: THREE.Material;
   label: (text: string, dark: boolean) => THREE.Material;
   /** 사용자 제품 사진. 다 불러오면 onReady로 크기를 알려줌 */
   photo: (url: string, onReady: (tex: THREE.Texture) => void) => void;
@@ -128,6 +130,11 @@ interface Layout {
 }
 
 function layoutFor(kind: ProductKind, w: number): Layout {
+  if (kind === "numpad") {
+    // 숫자 키패드: 4열 5줄, 맨 아래 0은 두 칸
+    const rows: Key[][] = [[K(1), K(1), K(1), K(1)], [1, 1, 1, K(1)], [1, 1, 1, K(1)], [1, 1, 1, K(1)], [[2, 0, false], 1, K(1)]];
+    return { rows, fGap: 0, wU: 4, dU: 5 };
+  }
   if (kind === "keyboard-full" || w >= 41) {
     // 풀사이즈: 본체(15u) + 방향키 묶음(3u) + 숫자패드(4u)
     const rows: Key[][] = [
@@ -274,36 +281,65 @@ function mouseShape(w: number, d: number, tall: number, body: THREE.Material, ac
   return [g];
 }
 
-/** 사진의 평균 색(투명한 배경 제외). 3D 모형을 제품 색으로 칠할 때 씀 */
+/**
+ * 사진 속 제품의 평균 색. 3D 모형을 제품 색으로 칠할 때 씀.
+ * 투명한 배경은 빼고, 배경을 지우지 않은 사진이면 가장자리 색(배경)과 비슷한 픽셀도 뺌
+ */
 function averageColor(tex: THREE.Texture): string | null {
+  const N = 32;
   const c = document.createElement("canvas");
-  c.width = c.height = 24;
+  c.width = c.height = N;
   const g = c.getContext("2d", { willReadFrequently: true });
   if (!g) return null;
+  let px: Uint8ClampedArray;
   try {
-    g.drawImage(tex.image as CanvasImageSource, 0, 0, 24, 24);
-    const px = g.getImageData(0, 0, 24, 24).data;
-    let r = 0;
-    let gg = 0;
-    let b = 0;
-    let n = 0;
-    for (let i = 0; i < px.length; i += 4) {
-      if (px[i + 3] < 128) continue;
-      r += px[i];
-      gg += px[i + 1];
-      b += px[i + 2];
-      n++;
-    }
-    return n ? `rgb(${Math.round(r / n)}, ${Math.round(gg / n)}, ${Math.round(b / n)})` : null;
+    g.drawImage(tex.image as CanvasImageSource, 0, 0, N, N);
+    px = g.getImageData(0, 0, N, N).data;
   } catch {
     return null;
   }
+  // 가장자리가 대부분 불투명하면 배경이 남아 있는 사진 → 가장자리 평균을 배경색으로
+  let br = 0;
+  let bgc = 0;
+  let bb = 0;
+  let bn = 0;
+  let opaque = 0;
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      if (x > 0 && y > 0 && x < N - 1 && y < N - 1) continue;
+      const i = (y * N + x) * 4;
+      if (px[i + 3] < 128) continue;
+      opaque++;
+      br += px[i];
+      bgc += px[i + 1];
+      bb += px[i + 2];
+      bn++;
+    }
+  const hasBg = opaque > (4 * N - 4) * 0.6;
+  const bg = bn ? [br / bn, bgc / bn, bb / bn] : [0, 0, 0];
+  let r = 0;
+  let gg = 0;
+  let b = 0;
+  let n = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] < 128) continue;
+    if (hasBg && Math.hypot(px[i] - bg[0], px[i + 1] - bg[1], px[i + 2] - bg[2]) < 45) continue;
+    r += px[i];
+    gg += px[i + 1];
+    b += px[i + 2];
+    n++;
+  }
+  return n ? `rgb(${Math.round(r / n)}, ${Math.round(gg / n)}, ${Math.round(b / n)})` : null;
 }
 
 // ── 종류별 모형 ──────────────────────────────────────────
 type Build = (ctx: ModelCtx, w: number, d: number, p: Pal, item: DeskItem) => THREE.Object3D[];
 
 const SCREEN_GLOW = "#8fb6ff";
+/** 스피커 받침대 기본 높이(cm) */
+const STAND_TOP = 12;
+/** 데스크 선반 윗판 높이(cm) */
+const SHELF_TOP = 28;
 
 /** 모니터 (울트라와이드는 살짝 휘게) */
 function monitor(ctx: ModelCtx, w: number, d: number, p: Pal, ultra: boolean, arm?: Mount): THREE.Object3D[] {
@@ -390,6 +426,208 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
   keyboard: (ctx, w, d, p) => keyboardModel(ctx, w, d, p, "keyboard"),
   "keyboard-full": (ctx, w, d, p) => keyboardModel(ctx, w, d, p, "keyboard-full"),
   "macro-pad": (ctx, w, d, p) => streamDeck(ctx, w, d, p),
+  numpad: (ctx, w, d, p) => keyboardModel(ctx, w, d, p, "numpad"),
+
+  // ── 책상 세팅 확장 ──
+  "pc-tower": (ctx, w, d, p, item) => {
+    const H = item.tall ?? 46;
+    const k = glow(ctx.lighting);
+    const out: THREE.Object3D[] = [box(w, H, d, ctx.mat(p.body, { rough: 0.45, metal: 0.3 }), 0, H / 2 + 1.2)];
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) out.push(box(3, 1.2, 3, ctx.mat("#111113"), sx * (w / 2 - 3), 0.6, sz * (d / 2 - 4))); // 받침 발
+    // 왼쪽 유리 옆판 + 안쪽 RGB 빛
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(d * 0.9, H * 0.86), ctx.mat("#1a1033", { rough: 0.1, metal: 0.3, emissive: "#7c3aed", emissiveIntensity: 0.25 + k * 0.9 }));
+    glass.rotation.y = -Math.PI / 2;
+    glass.position.set(-w / 2 - 0.02, H / 2 + 1.2, 0);
+    out.push(glass);
+    // 앞면 팬 자리 3개
+    for (let i = 0; i < 3; i++) {
+      const fan = cyl(w * 0.32, w * 0.32, 0.3, ctx.mat(p.trim, { rough: 0.6 }), 0, 1.2 + H * (0.22 + i * 0.28), d / 2 + 0.05, 32);
+      fan.rotation.x = Math.PI / 2;
+      out.push(fan);
+    }
+    const l = pointLight(ctx, "#a855f7", 30, v(-w / 2 - 8, H * 0.5, 0), 80);
+    if (l) out.push(l);
+    return out;
+  },
+  "mini-pc": (ctx, w, d, _p, item) => {
+    const H = item.tall ?? 5;
+    const m = ctx.mat(ALU[colorOf(item)], { rough: 0.35, metal: 0.6 });
+    return [box(w, H - 0.4, d, m, 0, 0.4 + (H - 0.4) / 2), cyl(Math.min(w, d) * 0.42, Math.min(w, d) * 0.42, 0.4, ctx.mat("#111113"), 0, 0.2)];
+  },
+  webcam: (ctx, w, d, p) => {
+    // 모니터 위(또는 책상)에 걸치는 몸통 + 렌즈. 뒤로 클립
+    const body = box(w, 3, Math.max(2.5, d * 0.75), ctx.mat(p.body, { rough: 0.4 }), 0, 1.6, 0.6);
+    const lens = cyl(1, 1, 0.4, ctx.mat("#050507", { rough: 0.15, metal: 0.5 }), 0, 1.6, 0.6 + Math.max(2.5, d * 0.75) / 2 + 0.1, 24);
+    lens.rotation.x = Math.PI / 2;
+    const clip = box(w * 0.3, 0.6, 4, ctx.mat(p.trim), 0, 0.1, -1.6);
+    return [body, lens, clip];
+  },
+  gamepad: (ctx, w, d, p) => {
+    const m = ctx.mat(p.body, { rough: 0.45 });
+    const dome = (sx: number, sz: number, sy: number, x: number, z: number) => {
+      const s = shadow(new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), m));
+      s.scale.set(sx, sy, sz);
+      s.position.set(x, 0, z);
+      return s;
+    };
+    const stick = (x: number, z: number) => cyl(0.9, 1, 1.4, ctx.mat("#1a1a1d", { rough: 0.7 }), x, 3.2, z, 20);
+    return [
+      dome(w * 0.36, d * 0.36, 3.6, 0, -d * 0.08), // 몸통
+      dome(w * 0.16, d * 0.3, 3.2, -w * 0.3, d * 0.16), // 왼쪽 손잡이
+      dome(w * 0.16, d * 0.3, 3.2, w * 0.3, d * 0.16), // 오른쪽 손잡이
+      stick(-w * 0.2, -d * 0.12),
+      stick(w * 0.08, d * 0.12),
+      ...[["#facc15", 0, -0.13], ["#3b82f6", -0.06, -0.06], ["#ef4444", 0.06, -0.06], ["#22c55e", 0, 0.01]].map(([c, ox, oz]) =>
+        cyl(0.45, 0.45, 0.4, ctx.mat(c as string, { rough: 0.4 }), w * (0.24 + (ox as number)), 3.35, d * (oz as number), 12),
+      ),
+    ];
+  },
+  "drawing-tablet": (ctx, w, d) => {
+    const area = box(w * 0.74, 0.05, d * 0.8, ctx.mat("#2a2a30", { rough: 0.85 }), w * 0.08, 0.9, 0);
+    area.castShadow = false;
+    return [box(w, 0.9, d, ctx.mat("#1c1c20", { rough: 0.6 })), area, rod(v(-w * 0.1, 1.4, d * 0.32), v(w * 0.35, 1.4, -d * 0.25), 0.5, ctx.mat("#52525b", { rough: 0.4, metal: 0.4 }))];
+  },
+  "audio-interface": (ctx, w, d, p, item) => {
+    const H = item.tall ?? 5;
+    const knobM = ctx.mat(p.trim, { rough: 0.35, metal: 0.6 });
+    const out: THREE.Object3D[] = [box(w, H, d, ctx.mat(p.body, { rough: 0.5, metal: 0.2 }))];
+    out.push(cyl(d * 0.24, d * 0.26, 2, knobM, w * 0.21, H + 1, 0, 32)); // 큰 볼륨
+    for (const x of [-0.28, -0.1]) out.push(cyl(d * 0.11, d * 0.12, 1.2, knobM, w * x, H + 0.6, -d * 0.1, 24));
+    const k = glow(ctx.lighting);
+    for (const x of [-0.28, -0.1]) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(d * 0.13, 0.12, 8, 24), ctx.mat("#22c55e", { emissive: "#22c55e", emissiveIntensity: 0.4 + k }));
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(w * x, H + 0.05, -d * 0.1);
+      out.push(ring);
+    }
+    return out;
+  },
+  "key-light": (ctx, w, d, p, item) => {
+    const H = item.tall ?? 45;
+    const m = ctx.mat(p.body, { rough: 0.4, metal: 0.4 });
+    const k = glow(ctx.lighting);
+    const pw = w * 0.9;
+    const panel = new THREE.Group();
+    panel.add(box(pw, pw * 0.62, 2.4, m, 0, 0, 0));
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(pw * 0.92, pw * 0.56), ctx.mat("#fffaf0", { emissive: "#fff3dc", emissiveIntensity: 0.35 + k * 1.6 }));
+    face.position.z = 1.25;
+    panel.add(face);
+    panel.position.set(0, H, -d * 0.1);
+    panel.rotation.x = 0.35; // 책상 쪽으로 살짝 숙임
+    const out: THREE.Object3D[] = [cyl(Math.min(w, d) * 0.42, Math.min(w, d) * 0.45, 1.4, m), rod(v(0, 1.4, 0), v(0, H - pw * 0.25, -d * 0.1), 0.8, m), panel];
+    out.push(...spotDown(ctx, "#fff3dc", 240, v(0, H, -d * 0.1 + 2), v(0, 0, d * 1.5), 0.9));
+    return out;
+  },
+  "mood-light": (ctx, w, d, _p, item) => {
+    const H = item.tall ?? 15;
+    const r = Math.min(w, d) / 2;
+    const k = glow(ctx.lighting);
+    const shade = shadow(new THREE.Mesh(new THREE.SphereGeometry(r * 0.95, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), ctx.mat("#fff4dc", { rough: 0.6, emissive: "#ffcf87", emissiveIntensity: 0.3 + k * 1.4 })));
+    shade.scale.y = (H - 2) / (r * 0.95);
+    shade.position.y = 2;
+    const out: THREE.Object3D[] = [cyl(r, r, 2, ctx.mat("#c9a27a", { rough: 0.7 })), shade];
+    const l = pointLight(ctx, "#ffcf87", 45, v(0, H * 0.6, 0), 120);
+    if (l) out.push(l);
+    return out;
+  },
+  candle: (ctx, w, d, _p, item) => {
+    const H = item.tall ?? 9;
+    const r = Math.min(w, d) / 2;
+    const k = glow(ctx.lighting);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.6, 16), ctx.mat("#ffd27a", { emissive: "#ffb347", emissiveIntensity: 0.6 + k * 2 }));
+    flame.position.y = H + 0.9;
+    const out: THREE.Object3D[] = [cyl(r, r * 0.95, H, ctx.mat("#e9e3da", { rough: 0.35 })), cyl(r * 0.85, r * 0.85, 0.2, ctx.mat("#f6efe4", { rough: 0.9 }), 0, H - 0.6), flame];
+    const l = pointLight(ctx, "#ffb347", 18, v(0, H + 2, 0), 70);
+    if (l) out.push(l);
+    return out;
+  },
+  "desk-shelf": (ctx, w, d, p, item) => {
+    // 2단 선반: 양옆 판 + 가운데 판 + 윗판 (윗판 위에 제품을 올릴 수 있음)
+    const H = item.tall ?? SHELF_TOP;
+    const m = ctx.mat(p.body, { rough: 0.55 });
+    return [box(1.8, H, d, m, -w / 2 + 0.9, H / 2), box(1.8, H, d, m, w / 2 - 0.9, H / 2), box(w, 1.8, d, m, 0, H - 0.9), box(w - 3.6, 1.4, d, m, 0, H * 0.48)];
+  },
+  "pen-cup": (ctx, w, d, p, item) => {
+    const H = item.tall ?? 10;
+    const r = Math.min(w, d) / 2;
+    const out: THREE.Object3D[] = [cyl(r, r * 0.92, H, ctx.mat(p.body, { rough: 0.5 })), cyl(r * 0.85, r * 0.85, 0.2, ctx.mat("#0d0d0f"), 0, H - 0.5)];
+    ["#2563eb", "#111827", "#dc2626", "#16a34a", "#f59e0b"].forEach((c, i) => {
+      const a = (i / 5) * Math.PI * 2;
+      const top = v(Math.cos(a) * r * 0.9, H + 5 + (i % 2) * 1.5, Math.sin(a) * r * 0.9);
+      out.push(rod(v(Math.cos(a) * r * 0.3, 1, Math.sin(a) * r * 0.3), top, 0.35, ctx.mat(c, { rough: 0.5 })));
+    });
+    return out;
+  },
+  books: (ctx, w, d, p, item) => {
+    const H = item.tall ?? 23;
+    const out: THREE.Object3D[] = [];
+    const endW = 1.2;
+    const endM = ctx.mat(p.body, { rough: 0.4, metal: 0.5 });
+    out.push(box(endW, H * 0.7, d * 0.8, endM, -w / 2 + endW / 2, H * 0.35), box(endW, H * 0.7, d * 0.8, endM, w / 2 - endW / 2, H * 0.35));
+    const colors = ["#7f1d1d", "#1e3a8a", "#e7e5e4", "#14532d", "#78350f", "#334155", "#a16207", "#57534e"];
+    let x = -w / 2 + endW;
+    let i = 0;
+    while (x < w / 2 - endW - 1.5) {
+      const t = Math.min(1.6 + ((i * 7) % 5) * 0.5, w / 2 - endW - x);
+      const h = H * (0.82 + ((i * 3) % 4) * 0.06);
+      out.push(box(t - 0.1, h, d * (0.85 + (i % 3) * 0.05), ctx.mat(colors[i % colors.length], { rough: 0.8 }), x + t / 2, h / 2));
+      x += t;
+      i++;
+    }
+    return out;
+  },
+  "photo-frame": (ctx, w, _d, p, item) => {
+    const H = item.tall ?? 18;
+    const frame = new THREE.Group();
+    frame.add(box(w, H, 1.4, ctx.mat(p.body, { rough: 0.5 }), 0, H / 2, 0));
+    const pic = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.78, H * 0.78), ctx.art);
+    pic.position.set(0, H / 2, 0.72);
+    frame.add(pic);
+    frame.rotation.x = -0.18; // 뒤로 살짝 기댐
+    frame.position.z = 0.8;
+    return [frame, rod(v(0, H * 0.55, -0.2), v(0, 0.2, -H * 0.35), 0.3, ctx.mat(p.trim))];
+  },
+  calendar: (ctx, w, d, _p, item) => {
+    const H = item.tall ?? 14;
+    const lean = Math.atan(d / 2 / H);
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(w, H / Math.cos(lean)), ctx.calendar);
+    front.position.set(0, H / 2, d / 4);
+    front.rotation.x = -lean;
+    const back = box(w, H / Math.cos(lean), 0.3, ctx.mat("#d6d3d1", { rough: 0.8 }), 0, H / 2, -d / 4);
+    back.rotation.x = lean;
+    return [shadow(front), back, rod(v(-w / 2, H, 0), v(w / 2, H, 0), 0.35, ctx.mat("#52525b", { metal: 0.5 }))];
+  },
+  earbuds: (ctx, w, d, _p, item) => {
+    const H = item.tall ?? 2.5;
+    const m = ctx.mat(colorOf(item) === "white" ? "#f4f4f5" : "#1f1f23", { rough: 0.25 });
+    const shell = shadow(new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), m));
+    shell.scale.set(w / 2, H / 2, d / 2);
+    shell.position.y = H / 2;
+    return [shell];
+  },
+  tumbler: (ctx, w, d, p, item) => {
+    const H = item.tall ?? 20;
+    const r = Math.min(w, d) / 2;
+    return [cyl(r * 0.92, r * 0.85, H - 2.5, ctx.mat(p.body, { rough: 0.35, metal: 0.4 })), cyl(r * 0.95, r * 0.95, 2.5, ctx.mat(p.trim, { rough: 0.5 }), 0, H - 1.25)];
+  },
+  "desk-fan": (ctx, w, d, p, item) => {
+    const H = item.tall ?? 25;
+    const m = ctx.mat(p.body, { rough: 0.45 });
+    const R = Math.min(w * 0.48, H * 0.36);
+    const head = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(R, 0.6, 12, 48), m);
+    head.add(ring);
+    for (let i = 0; i < 8; i++) {
+      const bar = box(0.25, R * 2, 0.25, m, 0, 0, 0.3);
+      bar.rotation.z = (i / 8) * Math.PI;
+      head.add(bar);
+    }
+    head.add(cyl(R * 0.2, R * 0.2, 1.2, ctx.mat(p.trim), 0, 0, 0, 24).rotateX(Math.PI / 2));
+    head.position.set(0, H - R, d * 0.05);
+    head.rotation.x = -0.12;
+    head.traverse((o) => shadow(o));
+    return [cyl(Math.min(w, d) * 0.4, Math.min(w, d) * 0.44, 2, m), rod(v(0, 2, 0), v(0, H - R, 0), 1, m), head];
+  },
   mouse: (ctx, w, d, p) => mouseShape(w, d, 3.8, ctx.mat(p.body, { rough: 0.4 }), ctx.mat(p === PAL.black ? "#3a3a40" : "#b8b9be", { rough: 0.5, metal: 0.4 })),
   "mouse-vertical": (ctx, w, d, p) => {
     const dome = shadow(new THREE.Mesh(new THREE.SphereGeometry(1, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), ctx.mat(p.body, { rough: 0.35 })));
@@ -443,6 +681,18 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
       out.push(drv);
     }
     return out;
+  },
+  "speaker-stand": (ctx, w, d, p, item) => {
+    // 받침판 + 기둥 + 살짝 뒤로 기운 윗판, 윗판 모서리에 고무 패드
+    const H = item.tall ?? STAND_TOP;
+    const m = ctx.mat(p.body, { rough: 0.5, metal: 0.25 });
+    const top = new THREE.Group();
+    top.add(box(w * 0.92, 1.2, d * 0.9, m, 0, 0, 0));
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) top.add(cyl(0.9, 0.9, 0.5, ctx.mat("#111113", { rough: 0.9 }), sx * w * 0.32, 0.85, sz * d * 0.32, 16));
+    top.position.y = H - 0.6;
+    top.rotation.x = -0.06; // 소리가 귀 쪽으로 가도록 앞이 살짝 들림
+    const colW = Math.min(w * 0.35, 5);
+    return [box(w, 1.2, d, m), box(colW, H - 1.8, colW, m, 0, 1.2 + (H - 1.8) / 2, 0), top];
   },
   soundbar: (ctx, w, d, p) => [box(w, 6.5, d, ctx.mat(p.body, { rough: 0.7 })), box(w * 0.96, 5, 0.2, ctx.mat("#141416", { rough: 0.95 }), 0, 3.25, d / 2)],
   "desk-mat": (ctx, w, d, p) => [box(w, 0.35, d, ctx.mat(p === PAL.black ? "#252528" : "#c8c8cd", { rough: 0.95 }))],
@@ -599,11 +849,41 @@ function photoThickness(item: DeskItem) {
   return 1.4;
 }
 
-/** 사진 제품이 마우스인지 (분류 또는 이름·사이트 주소로) */
-function photoIsMouse(item: DeskItem) {
-  if (item.category === "mouse") return true;
-  const g = guessProduct(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`);
-  return g?.kind === "mouse" || g?.kind === "mouse-vertical";
+/** 사진 제품이 3D에서 쓸 모형 종류: 직접 고른 것 → 이름·사이트 주소로 추정 → 분류(마우스·키보드). 모르면 null */
+export function photoModelKind(item: DeskItem): ProductKind | null {
+  if (item.model) return item.model;
+  const g = guessModel(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`);
+  if (g) return g;
+  if (item.category === "mouse") return "mouse";
+  if (item.category === "keyboard") return "keyboard";
+  return null;
+}
+
+/** 입력한 높이를 모형이 스스로 쓰는 종류 (따로 늘리지 않음) */
+const TALL_NATIVE = new Set<ProductKind>([
+  "mouse", "mouse-vertical", "speaker-stand", "generic", "pc-tower", "mini-pc", "audio-interface", "key-light", "mood-light",
+  "candle", "desk-shelf", "pen-cup", "books", "photo-frame", "calendar", "earbuds", "tumbler", "desk-fan",
+]);
+
+/** 종류별 모형 부품 (사진 제품용: 색은 사진에서 딴 팔레트) */
+function modelParts(ctx: ModelCtx, kind: ProductKind, item: DeskItem, w: number, d: number, p: Pal, tone: ItemColor): THREE.Object3D[] {
+  const fake: DeskItem = { ...item, kind, color: tone, mount: undefined };
+  if (kind === "monitor" || kind === "ultrawide") return monitor(ctx, w, d, p, kind === "ultrawide");
+  if (kind === "mouse" || kind === "mouse-vertical") {
+    return mouseShape(w, d, item.tall ?? 4, ctx.mat(p.body, { rough: 0.45 }), ctx.mat(p.trim, { rough: 0.4, metal: 0.5 }));
+  }
+  const build = BUILD[kind];
+  return build ? build(ctx, w, d, p, fake) : genericModel(ctx, fake, w, d, p);
+}
+
+/** 사진 평균 색 → 모형 팔레트 (밝은 제품은 화이트 계열, 어두운 제품은 블랙 계열 부품과 맞춤) */
+function palFromColor(css: string): [Pal, ItemColor] {
+  const base = new THREE.Color(css); // sRGB → 선형으로 바뀌므로 밝기는 getHSL로 판단
+  const hsl = { h: 0, s: 0, l: 0 };
+  base.getHSL(hsl);
+  const light = hsl.l > 0.55;
+  const shade = (dl: number) => "#" + new THREE.Color().setHSL(hsl.h, hsl.s, Math.min(1, Math.max(0, hsl.l + dl))).getHexString();
+  return [{ body: "#" + base.getHexString(), trim: shade(light ? -0.12 : 0.1), key: shade(light ? 0.06 : 0.05), metal: 0.15 }, light ? "white" : "black"];
 }
 
 /**
@@ -747,15 +1027,30 @@ function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.
   const base = box(w, 0.4, d, new THREE.MeshBasicMaterial({ visible: false }));
   base.castShadow = false;
   g.add(base); // 사진을 불러오기 전에도 클릭할 수 있게
-  // 마우스는 사진을 입히면 모양이 어색해서 실제 크기의 마우스 모형으로 그리고, 색만 사진에서 가져옴
-  if (photoIsMouse(item)) {
-    const body = new THREE.MeshStandardMaterial({ color: "#2b2b2f", roughness: 0.45 });
-    const accent = ctx.mat("#55565c", { rough: 0.4, metal: 0.5 });
-    for (const o of mouseShape(w, d, item.tall ?? 4, body, accent)) g.add(o);
+  // 3D 모양(종류)을 알면 그 종류의 통일된 모형을 실제 크기·높이로 그리고, 색만 사진에서 가져옴
+  const mk = photoModelKind(item);
+  if (mk) {
+    const holder = new THREE.Group();
+    g.add(holder);
+    const draw = (p: Pal, tone: ItemColor) => {
+      holder.traverse((o) => {
+        const geo = (o as THREE.Mesh).geometry;
+        if (geo && !geo.userData.shared) geo.dispose();
+      });
+      holder.clear();
+      holder.scale.set(1, 1, 1);
+      for (const o of modelParts(ctx, mk, item, w, d, p, tone)) holder.add(o);
+      // 높이를 입력했으면 모형을 그 높이에 맞춤 (스스로 높이를 쓰는 모형은 제외)
+      if (item.tall && !TALL_NATIVE.has(mk)) {
+        const h = new THREE.Box3().setFromObject(holder).max.y;
+        if (h > 0.1) holder.scale.y = item.tall / h;
+      }
+    };
+    draw(PAL[colorOf(item)], colorOf(item));
     if (item.imageUrl) {
       ctx.photo(item.imageUrl, (tex) => {
         const c = averageColor(tex);
-        if (c) body.color.set(c);
+        if (c) draw(...palFromColor(c));
       });
     }
     return [g];
@@ -805,7 +1100,14 @@ export function buildItem(ctx: ModelCtx, item: DeskItem): THREE.Group {
 }
 
 /** 다른 제품을 올려놓을 수 있는 제품과 그 윗면 높이 */
-export const SUPPORT_TOP: Partial<Record<ProductKind, number>> = { "desk-mat": 0.35, "mouse-pad": 0.35, "monitor-riser": 10 };
+export const SUPPORT_TOP: Partial<Record<ProductKind, number>> = { "desk-mat": 0.35, "mouse-pad": 0.35, "monitor-riser": 10, "speaker-stand": 12, "desk-shelf": SHELF_TOP };
+
+/** 이 제품 위에 다른 제품을 올릴 수 있으면 그 윗면 높이 (사진 제품은 3D 모형·입력한 높이 기준), 아니면 undefined */
+export function supportTop(item: DeskItem): number | undefined {
+  const kind = item.kind === "photo" ? photoModelKind(item) : item.kind;
+  if (!kind || SUPPORT_TOP[kind] === undefined) return undefined;
+  return kind === "speaker-stand" || kind === "monitor-riser" || kind === "desk-shelf" ? item.tall ?? SUPPORT_TOP[kind] : SUPPORT_TOP[kind];
+}
 
 /** 모니터 화면 윗변 높이와 화면 위치(제품 기준) — 라이트바를 올릴 때 씀 */
 export function monitorTop(item: DeskItem) {

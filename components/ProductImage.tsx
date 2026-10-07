@@ -705,6 +705,346 @@ const monitorRiserArt = (p: Pal): Art => ({
   ),
 });
 
+const speakerStandArt = (p: Pal): Art => ({
+  w: 150,
+  h: 180,
+  node: (
+    <>
+      <Defs>{L(p, "ssTop", [[0, p.body0], [1, p.body1]])}</Defs>
+      <Shadow w={150} h={180} r={8} />
+      <Rect x={0} y={0} width={150} height={180} rx={8} fill={p.plate} stroke={p.edge} strokeWidth={1.2} />
+      <Rect x={10} y={12} width={130} height={150} rx={6} fill={U(p, "ssTop")} stroke={p.edge} strokeWidth={1} />
+      {[[30, 34], [120, 34], [30, 140], [120, 140]].map(([cx, cy]) => (
+        <Circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={7} fill="#111" opacity={0.55} />
+      ))}
+      <Rect x={14} y={16} width={122} height={142} rx={5} fill="none" stroke="#fff" strokeOpacity={0.1} />
+    </>
+  ),
+});
+
+// ── 책상 세팅 확장 (위에서 본 그림) ─────────────────────────
+const pcTowerArt = (p: Pal): Art => ({
+  w: 210,
+  h: 450,
+  node: (
+    <>
+      <Defs>{L(p, "pcTop", [[0, p.body0], [1, p.body1]], true)}</Defs>
+      <Shadow w={210} h={450} r={8} />
+      <Rect x={0} y={0} width={210} height={450} rx={8} fill={U(p, "pcTop")} stroke={p.edge} strokeWidth={1.4} />
+      {/* 왼쪽 유리 옆판(RGB) */}
+      <Rect x={2} y={8} width={10} height={434} rx={3} fill="#7c3aed" opacity={0.55} />
+      {/* 윗면 팬 두 개 */}
+      {[120, 270].map((cy) => (
+        <G key={cy}>
+          <Circle cx={110} cy={cy} r={62} fill={p.detail} opacity={0.35} />
+          <Circle cx={110} cy={cy} r={62} fill="none" stroke={p.edge} strokeWidth={2} />
+          {[0, 1, 2, 3, 4].map((k) => (
+            <Circle key={k} cx={110} cy={cy} r={14 + k * 11} fill="none" stroke="#000" strokeOpacity={0.25} strokeWidth={1.5} />
+          ))}
+        </G>
+      ))}
+      {/* 앞면 전원·포트 */}
+      <Rect x={60} y={420} width={90} height={14} rx={4} fill={p.detail} opacity={0.6} />
+      <Circle cx={170} cy={427} r={6} fill="#38bdf8" opacity={0.85} />
+    </>
+  ),
+});
+
+const miniPcArt = (p: Pal): Art => ({
+  w: 130,
+  h: 130,
+  node: (
+    <>
+      <Defs>{L(p, "mpTop", [[0, p.metal1], [1, p.metal0]])}</Defs>
+      <Shadow w={130} h={130} r={22} />
+      <Rect x={0} y={0} width={130} height={130} rx={22} fill={U(p, "mpTop")} stroke={p.edge} strokeWidth={1.2} />
+      <Rect x={5} y={5} width={120} height={120} rx={18} fill="none" stroke="#fff" strokeOpacity={0.25} />
+      <Circle cx={65} cy={65} r={11} fill={p.detail} opacity={0.25} />
+    </>
+  ),
+});
+
+const webcamArt = (p: Pal): Art => ({
+  w: 100,
+  h: 35,
+  node: (
+    <>
+      <Defs>{L(p, "wcTop", [[0, p.body0], [1, p.body1]])}</Defs>
+      <Shadow w={100} h={35} r={14} />
+      <Rect x={0} y={4} width={100} height={27} rx={13} fill={U(p, "wcTop")} stroke={p.edge} strokeWidth={1.2} />
+      <Rect x={38} y={0} width={24} height={8} rx={3} fill={p.detail} opacity={0.6} />
+      <Circle cx={50} cy={24} r={7} fill="#0b0b0d" />
+      <Circle cx={52} cy={22} r={2} fill="#60a5fa" opacity={0.8} />
+    </>
+  ),
+});
+
+const gamepadArt = (p: Pal): Art => ({
+  w: 155,
+  h: 105,
+  node: (
+    <>
+      <Defs>{L(p, "gpBody", [[0, p.body0], [1, p.body1]])}</Defs>
+      <Ellipse cx={80} cy={58} rx={74} ry={44} fill="#000" opacity={0.15} />
+      <Path
+        d="M30 18 Q77 6 125 18 Q150 26 152 66 Q154 98 132 100 Q116 101 106 80 L49 80 Q39 101 23 100 Q1 98 3 66 Q5 26 30 18 Z"
+        fill={U(p, "gpBody")}
+        stroke={p.edge}
+        strokeWidth={1.4}
+      />
+      <Circle cx={45} cy={44} r={11} fill={p.detail} />
+      <Circle cx={98} cy={66} r={10} fill={p.detail} />
+      <Rect x={50} y={60} width={6} height={18} rx={1.5} fill={p.detail} />
+      <Rect x={44} y={66} width={18} height={6} rx={1.5} fill={p.detail} />
+      <Circle cx={118} cy={34} r={5} fill="#facc15" />
+      <Circle cx={108} cy={44} r={5} fill="#3b82f6" />
+      <Circle cx={128} cy={44} r={5} fill="#ef4444" />
+      <Circle cx={118} cy={54} r={5} fill="#22c55e" />
+      <Circle cx={77} cy={30} r={6} fill={p.detail} opacity={0.6} />
+    </>
+  ),
+});
+
+const numpadArt = (p: Pal): Art => ({
+  w: 90,
+  h: 130,
+  node: (
+    <>
+      <Defs>{L(p, "npCase", [[0, p.body0], [1, p.body1]])}</Defs>
+      <Shadow w={90} h={130} r={8} />
+      <Rect x={0} y={0} width={90} height={130} rx={8} fill={U(p, "npCase")} stroke={p.edge} strokeWidth={1.2} />
+      {[0, 1, 2, 3, 4].map((r) =>
+        [0, 1, 2, 3].map((c) =>
+          r === 4 && c === 1 ? null : (
+            <Rect
+              key={`${r}-${c}`}
+              x={7 + c * 19.5}
+              y={8 + r * 23.5}
+              width={r === 4 && c === 0 ? 37 : 16}
+              height={20}
+              rx={3}
+              fill={c === 3 || r === 0 ? p.mod0 : p.key0}
+              stroke={p.keyEdge}
+              strokeWidth={0.8}
+            />
+          ),
+        ),
+      )}
+    </>
+  ),
+});
+
+const drawingTabletArt = (p: Pal): Art => ({
+  w: 350,
+  h: 220,
+  node: (
+    <>
+      <Shadow w={350} h={220} r={12} />
+      <Rect x={0} y={0} width={350} height={220} rx={12} fill="#1c1c20" stroke="#0a0a0c" strokeWidth={1.4} />
+      <Rect x={70} y={22} width={258} height={176} rx={4} fill="#26262b" stroke="#3f3f46" strokeWidth={1.2} />
+      {[0, 1, 2, 3].map((k) => (
+        <Rect key={k} x={22} y={40 + k * 36} width={28} height={26} rx={5} fill="#2f2f35" />
+      ))}
+      <Line x1={120} y1={180} x2={300} y2={60} stroke="#71717a" strokeWidth={6} strokeLinecap="round" />
+      <Line x1={120} y1={180} x2={134} y2={171} stroke="#18181b" strokeWidth={6} strokeLinecap="round" />
+    </>
+  ),
+});
+
+const audioInterfaceArt = (p: Pal): Art => ({
+  w: 180,
+  h: 120,
+  node: (
+    <>
+      <Defs>{L(p, "aiTop", [[0, p.body0], [1, p.body1]])}</Defs>
+      <Shadow w={180} h={120} r={10} />
+      <Rect x={0} y={0} width={180} height={120} rx={10} fill={U(p, "aiTop")} stroke={p.edge} strokeWidth={1.2} />
+      <Circle cx={128} cy={58} r={30} fill={p.detail} />
+      <Circle cx={128} cy={58} r={24} fill={p.metal1} opacity={0.5} />
+      <Line x1={128} y1={58} x2={128} y2={38} stroke={p.detail} strokeWidth={3} />
+      {[40, 72].map((cx) => (
+        <G key={cx}>
+          <Circle cx={cx} cy={48} r={13} fill={p.detail} />
+          <Circle cx={cx} cy={48} r={14} fill="none" stroke="#22c55e" strokeOpacity={0.7} strokeWidth={2} />
+        </G>
+      ))}
+      <Rect x={20} y={86} width={70} height={12} rx={3} fill={p.detail} opacity={0.6} />
+    </>
+  ),
+});
+
+const keyLightArt = (p: Pal): Art => ({
+  w: 200,
+  h: 200,
+  node: (
+    <>
+      <Circle cx={100} cy={150} r={46} fill="#000" opacity={0.18} />
+      <Circle cx={100} cy={146} r={44} fill={p.body1} stroke={p.edge} />
+      <Circle cx={100} cy={146} r={8} fill={p.detail} />
+      <Rect x={10} y={40} width={180} height={34} rx={6} fill={p.body0} stroke={p.edge} strokeWidth={1.4} />
+      <Rect x={16} y={46} width={168} height={22} rx={4} fill="#fff7e6" opacity={0.9} />
+      <Rect x={96} y={74} width={8} height={64} fill={p.detail} />
+    </>
+  ),
+});
+
+const moodLightArt = (p: Pal): Art => ({
+  w: 100,
+  h: 100,
+  node: (
+    <>
+      <Defs>
+        <RadialGradient id={`mlGlow${p.s}`} cx="0.5" cy="0.45" r="0.55">
+          <Stop offset="0" stopColor="#fff7d6" />
+          <Stop offset="0.7" stopColor="#ffd08a" />
+          <Stop offset="1" stopColor="#e8a95a" />
+        </RadialGradient>
+      </Defs>
+      <Circle cx={52} cy={54} r={46} fill="#000" opacity={0.16} />
+      <Circle cx={50} cy={50} r={46} fill={p.body1} stroke={p.edge} />
+      <Circle cx={50} cy={50} r={38} fill={`url(#mlGlow${p.s})`} />
+    </>
+  ),
+});
+
+const candleArt = (p: Pal): Art => ({
+  w: 80,
+  h: 80,
+  node: (
+    <>
+      <Circle cx={42} cy={43} r={37} fill="#000" opacity={0.16} />
+      <Circle cx={40} cy={40} r={37} fill="#d8cfc3" stroke="#a89c8d" />
+      <Circle cx={40} cy={40} r={30} fill="#f3ebe0" />
+      <Circle cx={40} cy={40} r={4} fill="#1f1f22" />
+      <Circle cx={40} cy={37} r={5} fill="#ffb347" opacity={0.85} />
+    </>
+  ),
+});
+
+const deskShelfArt = (p: Pal): Art => ({
+  w: 800,
+  h: 220,
+  node: (
+    <>
+      <Defs>{L(p, "dsTop", [[0, p.body0], [1, p.body1]])}</Defs>
+      <Shadow w={800} h={220} r={8} />
+      <Rect x={0} y={0} width={800} height={220} rx={8} fill={U(p, "dsTop")} stroke={p.edge} strokeWidth={1.4} />
+      <Rect x={0} y={0} width={24} height={220} rx={6} fill="#000" opacity={0.18} />
+      <Rect x={776} y={0} width={24} height={220} rx={6} fill="#000" opacity={0.18} />
+      <Rect x={10} y={10} width={780} height={200} rx={6} fill="none" stroke="#fff" strokeOpacity={0.1} />
+    </>
+  ),
+});
+
+const penCupArt = (p: Pal): Art => ({
+  w: 80,
+  h: 80,
+  node: (
+    <>
+      <Circle cx={42} cy={43} r={37} fill="#000" opacity={0.16} />
+      <Circle cx={40} cy={40} r={37} fill={p.body0} stroke={p.edge} />
+      <Circle cx={40} cy={40} r={31} fill={p.detail} opacity={0.75} />
+      {[
+        [30, 30, "#2563eb"],
+        [48, 28, "#111827"],
+        [52, 46, "#dc2626"],
+        [32, 50, "#16a34a"],
+        [42, 39, "#f59e0b"],
+      ].map(([cx, cy, c]) => (
+        <Circle key={String(c)} cx={cx as number} cy={cy as number} r={5} fill={c as string} stroke="#000" strokeOpacity={0.3} />
+      ))}
+    </>
+  ),
+});
+
+const BOOK_COLORS = ["#7f1d1d", "#1e3a8a", "#e7e5e4", "#14532d", "#78350f", "#334155", "#a16207"];
+const booksArt = (p: Pal): Art => ({
+  w: 240,
+  h: 180,
+  node: (
+    <>
+      <Shadow w={240} h={180} r={4} />
+      <Rect x={0} y={0} width={14} height={180} rx={3} fill={p.body1} stroke={p.edge} />
+      <Rect x={226} y={0} width={14} height={180} rx={3} fill={p.body1} stroke={p.edge} />
+      {BOOK_COLORS.map((c, k) => (
+        <Rect key={c} x={16 + k * 30} y={8 + (k % 3) * 4} width={28} height={164 - (k % 3) * 8} rx={2} fill={c} stroke="#000" strokeOpacity={0.35} />
+      ))}
+    </>
+  ),
+});
+
+const photoFrameArt = (p: Pal): Art => ({
+  w: 150,
+  h: 60,
+  node: (
+    <>
+      <Shadow w={150} h={20} r={3} />
+      <Rect x={0} y={4} width={150} height={16} rx={2} fill={p.body0} stroke={p.edge} strokeWidth={1.2} />
+      <Path d="M60 20 L75 56 L90 20 Z" fill={p.body1} stroke={p.edge} />
+    </>
+  ),
+});
+
+const calendarArt = (p: Pal): Art => ({
+  w: 180,
+  h: 80,
+  node: (
+    <>
+      <Shadow w={180} h={80} r={4} />
+      <Rect x={0} y={0} width={180} height={80} rx={4} fill="#f5f5f4" stroke="#a8a29e" strokeWidth={1.2} />
+      <Rect x={0} y={34} width={180} height={12} fill="#dc2626" />
+      <Line x1={0} y1={40} x2={180} y2={40} stroke="#7f1d1d" strokeWidth={1} />
+      {[20, 50, 80, 110, 140, 160].map((x) => (
+        <Circle key={x} cx={x} cy={40} r={2.5} fill="#52525b" />
+      ))}
+    </>
+  ),
+});
+
+const earbudsArt = (p: Pal): Art => ({
+  w: 60,
+  h: 50,
+  node: (
+    <>
+      <Shadow w={60} h={50} r={20} />
+      <Rect x={0} y={0} width={60} height={50} rx={20} fill={p.body0} stroke={p.edge} strokeWidth={1.2} />
+      <Line x1={4} y1={20} x2={56} y2={20} stroke={p.edge} strokeWidth={1} />
+      <Circle cx={30} cy={33} r={2} fill="#22c55e" />
+    </>
+  ),
+});
+
+const tumblerArt = (p: Pal): Art => ({
+  w: 80,
+  h: 80,
+  node: (
+    <>
+      <Defs>{L(p, "tbLid", [[0, p.body0], [1, p.body1]])}</Defs>
+      <Circle cx={42} cy={43} r={37} fill="#000" opacity={0.16} />
+      <Circle cx={40} cy={40} r={37} fill={U(p, "tbLid")} stroke={p.edge} />
+      <Circle cx={40} cy={40} r={27} fill="none" stroke={p.edge} strokeOpacity={0.7} strokeWidth={2} />
+      <Rect x={34} y={14} width={12} height={8} rx={3} fill={p.detail} />
+    </>
+  ),
+});
+
+const deskFanArt = (p: Pal): Art => ({
+  w: 180,
+  h: 150,
+  node: (
+    <>
+      <Ellipse cx={92} cy={112} rx={58} ry={34} fill="#000" opacity={0.15} />
+      <Ellipse cx={90} cy={108} rx={56} ry={34} fill={p.body1} stroke={p.edge} />
+      <Rect x={84} y={52} width={12} height={56} fill={p.detail} opacity={0.6} />
+      <Ellipse cx={90} cy={40} rx={86} ry={34} fill={p.body0} stroke={p.edge} strokeWidth={1.4} />
+      {[0, 1, 2, 3, 4].map((k) => (
+        <Line key={k} x1={18 + k * 36} y1={18} x2={18 + k * 36} y2={62} stroke={p.edge} strokeOpacity={0.6} />
+      ))}
+      <Circle cx={90} cy={40} r={10} fill={p.detail} />
+    </>
+  ),
+});
+
 const wirelessChargerArt = (p: Pal): Art => ({
   w: 100,
   h: 100,
@@ -1111,6 +1451,25 @@ const ART: Record<Exclude<ProductKind, "monitor" | "ultrawide" | "photo" | "gene
   "wrist-rest": wristRestArt,
   "desk-mat": deskMatArt,
   "monitor-riser": monitorRiserArt,
+  "speaker-stand": speakerStandArt,
+  "pc-tower": pcTowerArt,
+  "mini-pc": miniPcArt,
+  webcam: webcamArt,
+  gamepad: gamepadArt,
+  numpad: numpadArt,
+  "drawing-tablet": drawingTabletArt,
+  "audio-interface": audioInterfaceArt,
+  "key-light": keyLightArt,
+  "mood-light": moodLightArt,
+  candle: candleArt,
+  "desk-shelf": deskShelfArt,
+  "pen-cup": penCupArt,
+  books: booksArt,
+  "photo-frame": photoFrameArt,
+  calendar: calendarArt,
+  earbuds: earbudsArt,
+  tumbler: tumblerArt,
+  "desk-fan": deskFanArt,
   "wireless-charger": wirelessChargerArt,
   "phone-stand": phoneStandArt,
   "tablet-stand": tabletStandArt,

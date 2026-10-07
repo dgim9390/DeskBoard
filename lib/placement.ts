@@ -74,6 +74,7 @@ function preferredPosition(kind: ProductKind, size: Size, items: DeskItem[], des
       // 모니터 바로 앞
       return monitor ? { x: monitor.x + monitor.width / 2 - size.width / 2, y: monitor.y + monitor.height } : { x: centerX, y: desk.depth * 0.3 };
     case "speaker":
+    case "speaker-stand":
       // 모니터 오른쪽 옆
       return monitor ? { x: monitor.x + monitor.width + 2, y: monitor.y + 2 } : { x: desk.width - size.width - M, y: M };
     case "trackpad":

@@ -21,7 +21,7 @@ export type PickerGroup = "monitor" | "laptop" | "input" | "stand" | "audio" | "
 
 export const PICKER_GROUPS: { key: PickerGroup; label: string }[] = [
   { key: "monitor", label: "모니터" },
-  { key: "laptop", label: "노트북" },
+  { key: "laptop", label: "컴퓨터·노트북" },
   { key: "input", label: "키보드·마우스" },
   { key: "stand", label: "거치대·받침" },
   { key: "audio", label: "오디오" },
@@ -74,6 +74,31 @@ export const CATALOG: CatalogEntry[] = [
 
   // ── 오디오
   { group: "audio", key: "speaker", kind: "speaker", name: "북쉘프 스피커", category: "accessory", width: 15, height: 18, price: 189000 },
+  { group: "audio", key: "speaker-stand", kind: "speaker-stand", name: "스피커 받침대", category: "accessory", width: 15, height: 18, price: 39000 },
+  { group: "audio", key: "audio-interface", kind: "audio-interface", name: "오디오 인터페이스", category: "accessory", width: 18, height: 12, price: 199000 },
+  // ── 컴퓨터
+  { group: "laptop", key: "pc-tower", kind: "pc-tower", name: "PC 본체", category: "accessory", width: 21, height: 45, price: 1500000 },
+  { group: "laptop", key: "mini-pc", kind: "mini-pc", name: "미니 PC (맥 미니)", category: "accessory", width: 13, height: 13, price: 890000 },
+  // ── 모니터 주변
+  { group: "monitor", key: "webcam", kind: "webcam", name: "웹캠", category: "accessory", width: 10, height: 3.5, price: 99000 },
+  // ── 입력
+  { group: "input", key: "gamepad", kind: "gamepad", name: "게임패드", category: "accessory", width: 15.5, height: 10.5, price: 69000 },
+  { group: "input", key: "numpad", kind: "numpad", name: "숫자 키패드", category: "keyboard", width: 9, height: 13, price: 39000 },
+  { group: "input", key: "drawing-tablet", kind: "drawing-tablet", name: "드로잉 태블릿", category: "accessory", width: 35, height: 22, price: 290000 },
+  // ── 조명
+  { group: "light", key: "key-light", kind: "key-light", name: "키라이트 (방송 조명)", category: "accessory", width: 20, height: 20, price: 159000 },
+  { group: "light", key: "mood-light", kind: "mood-light", name: "무드등", category: "accessory", width: 10, height: 10, price: 29000 },
+  { group: "light", key: "candle", kind: "candle", name: "캔들", category: "accessory", width: 8, height: 8, price: 25000 },
+  // ── 거치·수납
+  { group: "stand", key: "desk-shelf", kind: "desk-shelf", name: "데스크 선반 (2단)", category: "accessory", width: 80, height: 22, price: 59000 },
+  // ── 소품
+  { group: "decor", key: "pen-cup", kind: "pen-cup", name: "펜꽂이", category: "accessory", width: 8, height: 8, price: 12000 },
+  { group: "decor", key: "books", kind: "books", name: "책 + 북엔드", category: "accessory", width: 24, height: 18, price: 30000 },
+  { group: "decor", key: "photo-frame", kind: "photo-frame", name: "액자", category: "accessory", width: 15, height: 6, price: 15000 },
+  { group: "decor", key: "calendar", kind: "calendar", name: "탁상 달력", category: "accessory", width: 18, height: 8, price: 9000 },
+  { group: "decor", key: "earbuds", kind: "earbuds", name: "무선 이어폰", category: "accessory", width: 6, height: 5, price: 249000 },
+  { group: "decor", key: "tumbler", kind: "tumbler", name: "텀블러", category: "accessory", width: 8, height: 8, price: 35000 },
+  { group: "decor", key: "desk-fan", kind: "desk-fan", name: "탁상 선풍기", category: "accessory", width: 18, height: 15, price: 39000 },
   { group: "audio", key: "soundbar", kind: "soundbar", name: "PC 사운드바", category: "accessory", width: 45, height: 8, price: 89000 },
   { group: "audio", key: "headphones", kind: "headphones", name: "헤드폰", category: "accessory", width: 17, height: 19, price: 399000 },
   { group: "audio", key: "mic-arm", kind: "mic-arm", name: "마이크 + 붐암", category: "accessory", width: 14, height: 45, price: 159000 },

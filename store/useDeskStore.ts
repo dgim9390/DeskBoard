@@ -13,7 +13,11 @@ export type ProductKind =
   // 데스크테리어 소품
   | "monitor-riser" | "wireless-charger" | "phone-stand" | "tablet-stand" | "headphones" | "headphone-stand"
   | "soundbar" | "mic-arm" | "desk-organizer" | "power-strip" | "trackpad" | "macro-pad" | "mouse-pad"
-  | "plant" | "mug" | "clock" | "humidifier" | "notebook-pad"
+  | "plant" | "mug" | "clock" | "humidifier" | "notebook-pad" | "speaker-stand"
+  // 책상 세팅 확장
+  | "pc-tower" | "mini-pc" | "webcam" | "gamepad" | "numpad" | "drawing-tablet" | "audio-interface"
+  | "key-light" | "mood-light" | "candle" | "desk-shelf" | "pen-cup" | "books" | "photo-frame" | "calendar"
+  | "earbuds" | "tumbler" | "desk-fan"
   // 사용자가 링크로 추가한 제품: 제품 사진 그대로(photo) 또는 이름이 적힌 상자(generic)
   | "photo" | "generic";
 
@@ -23,6 +27,7 @@ export type ItemColor = "black" | "white";
 const WHITE_BY_DEFAULT: ProductKind[] = [
   "macbook-open", "macbook-closed", "laptop-stand", "laptop-vertical-stand", "usbc-hub", "light-bar",
   "trackpad", "mug", "plant", "humidifier", "phone-stand", "tablet-stand",
+  "mini-pc", "earbuds", "mood-light", "calendar", "desk-fan",
 ];
 export const defaultColor = (kind?: ProductKind): ItemColor => (kind && WHITE_BY_DEFAULT.includes(kind) ? "white" : "black");
 
@@ -62,6 +67,8 @@ export interface DeskItem {
   site?: string;
   /** 책상에서 위로 솟은 높이(cm). 사진·상자 제품의 3D 표시에 씀 (없으면 자동) */
   tall?: number;
+  /** 사진 제품이 3D에서 쓸 모형 종류 (없으면 이름으로 자동) */
+  model?: ProductKind;
 }
 
 /** 사용자가 링크(또는 직접 입력)로 만든 제품. "내 제품"에 보관돼 다시 쓸 수 있음 */
@@ -79,6 +86,8 @@ export interface CustomProduct {
   price?: number;
   /** 높이(cm, 3D용) */
   tall?: number;
+  /** 3D 모형 종류 */
+  model?: ProductKind;
   createdAt: number;
 }
 
@@ -151,6 +160,8 @@ interface DeskState {
   setItemImage: (id: string, imageUrl: string) => void;
   /** 사진·상자 제품의 높이(cm). undefined면 자동 */
   setItemTall: (id: string, tall: number | undefined) => void;
+  /** 사진 제품의 3D 모형 종류. undefined면 자동 */
+  setItemModel: (id: string, model: ProductKind | undefined) => void;
   detachMount: (id: string) => void;
   /** 가장 가까운 짝과 결합. 결합 후 남는 아이템 id를 반환 */
   mountNearest: (id: string) => string;
@@ -410,6 +421,7 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   setItemColor: (id, color) => set((s) => ({ deskItems: s.deskItems.map((i) => (i.id === id ? { ...i, color } : i)) })),
 
   setItemTall: (id, tall) => set((s) => ({ deskItems: s.deskItems.map((i) => (i.id === id ? { ...i, tall } : i)) })),
+  setItemModel: (id, model) => set((s) => ({ deskItems: s.deskItems.map((i) => (i.id === id ? { ...i, model } : i)) })),
 
   setItemImage: (id, imageUrl) =>
     set((s) => {
@@ -513,7 +525,7 @@ const history = { lastKey: null as string | null, lastTime: 0 };
 /** 책상·제품을 바꾸는 동작. 실행 전 상태를 기록해 두고, 실제로 바뀐 경우에만 되돌리기 목록에 넣음 */
 type Tracked =
   | "setDeskSize" | "setDeskMaterial" | "setLighting" | "addDeskItem" | "updateItemPosition" | "updateItemSize"
-  | "updateItemRotation" | "updateItemTransform" | "setItemColor" | "setItemImage" | "setItemTall" | "detachMount" | "mountNearest" | "reorder"
+  | "updateItemRotation" | "updateItemTransform" | "setItemColor" | "setItemImage" | "setItemTall" | "setItemModel" | "detachMount" | "mountNearest" | "reorder"
   | "removeItem" | "clearDesk" | "loadSetup" | "duplicateItem" | "applyTemplate";
 
 /** 연속 입력(크기 타이핑, 화살표 이동 등)은 1초 안이면 한 단계로 묶음 */
@@ -528,7 +540,7 @@ function trackHistory() {
   const st = useDeskStore.getState();
   const names: Tracked[] = [
     "setDeskSize", "setDeskMaterial", "setLighting", "addDeskItem", "updateItemPosition", "updateItemSize",
-    "updateItemRotation", "updateItemTransform", "setItemColor", "setItemImage", "setItemTall", "detachMount", "mountNearest", "reorder",
+    "updateItemRotation", "updateItemTransform", "setItemColor", "setItemImage", "setItemTall", "setItemModel", "detachMount", "mountNearest", "reorder",
     "removeItem", "clearDesk", "loadSetup", "duplicateItem", "applyTemplate",
   ];
   const wrapped: Partial<DeskState> = {};

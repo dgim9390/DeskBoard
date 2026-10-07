@@ -120,6 +120,50 @@ export function clockTexture() {
   return toTexture(c);
 }
 
+/** 액자 속 그림: 노을 진 산 풍경 */
+export function artTexture() {
+  const [c, g] = canvas(256, 320);
+  const sky = g.createLinearGradient(0, 0, 0, c.height);
+  sky.addColorStop(0, "#f8c39a");
+  sky.addColorStop(0.55, "#f39c8a");
+  sky.addColorStop(1, "#6d5a8c");
+  g.fillStyle = sky;
+  g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = "#fff3d6";
+  g.beginPath();
+  g.arc(170, 130, 28, 0, Math.PI * 2);
+  g.fill();
+  const hill = (y: number, color: string, amp: number) => {
+    g.fillStyle = color;
+    g.beginPath();
+    g.moveTo(0, c.height);
+    for (let x = 0; x <= c.width; x += 8) g.lineTo(x, y + Math.sin(x / 40) * amp + Math.cos(x / 23) * amp * 0.4);
+    g.lineTo(c.width, c.height);
+    g.fill();
+  };
+  hill(200, "#7a5f8f", 18);
+  hill(235, "#4c3f6b", 14);
+  hill(270, "#2f2a4a", 10);
+  return toTexture(c);
+}
+
+/** 탁상 달력 앞면 */
+export function calendarTexture() {
+  const [c, g] = canvas(256, 200);
+  g.fillStyle = "#fafaf9";
+  g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = "#dc2626";
+  g.fillRect(0, 0, c.width, 44);
+  g.fillStyle = "#fff";
+  g.font = "700 26px -apple-system, sans-serif";
+  g.textAlign = "center";
+  g.fillText("OCT", c.width / 2, 32);
+  g.fillStyle = "#52525b";
+  g.font = "500 15px -apple-system, sans-serif";
+  for (let r = 0; r < 5; r++) for (let d = 0; d < 7; d++) g.fillText(String(r * 7 + d + 1).replace(/^3[2-9]$/, ""), 22 + d * 35, 72 + r * 28);
+  return toTexture(c);
+}
+
 /** 바닥: 은은한 원목 마루 */
 export function floorTexture() {
   const [c, g] = canvas(1024, 1024);
