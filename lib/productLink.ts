@@ -20,7 +20,7 @@ export interface ProductPreview {
 }
 
 /** 배포 사이트 주소. 로컬 개발·맥 앱에서는 링크 읽기 서버로 이 주소를 씀 */
-const DEPLOYED = process.env.EXPO_PUBLIC_SITE_URL ?? "https://deskterior-one.vercel.app";
+const DEPLOYED = process.env.EXPO_PUBLIC_SITE_URL ?? "https://deskboard-one.vercel.app";
 
 function apiBase() {
   // 배포된 웹에서는 같은 사이트의 /api 를 사용

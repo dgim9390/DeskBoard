@@ -7,7 +7,7 @@
 데스크보드 · 실제 치수 기반의 데스크 셋업 시뮬레이터
 
 [![Download](https://img.shields.io/badge/Download-macOS_.dmg-6366F1?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/dgim9390/DeskBoard/releases/latest)
-[![Web](https://img.shields.io/badge/Web-브라우저에서_사용-18181B?style=for-the-badge&logo=vercel&logoColor=white)](https://deskterior-one.vercel.app)
+[![Web](https://img.shields.io/badge/Web-브라우저에서_사용-18181B?style=for-the-badge&logo=vercel&logoColor=white)](https://deskboard-one.vercel.app)
 
 [![Release](https://img.shields.io/github/v/release/dgim9390/DeskBoard?style=flat-square&color=6366F1&label=release)](https://github.com/dgim9390/DeskBoard/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-macOS_(Apple_Silicon)_|_Web-000000?style=flat-square)
@@ -53,7 +53,7 @@ macOS 앱과 웹에서 동일하게 동작하고, 로그인하면 저장한 셋�
 
 **웹**
 
-별도 설치 없이 [deskterior-one.vercel.app](https://deskterior-one.vercel.app)에서 사용할 수 있습니다.
+별도 설치 없이 [DeskBoard-one.vercel.app](https://deskboard-one.vercel.app)에서 사용할 수 있습니다.
 
 ### 앱이 열리지 않는 경우
 

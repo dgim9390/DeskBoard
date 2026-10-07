@@ -18,7 +18,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 // 개발 중에만 다른 주소로 시험할 수 있게 허용 (배포된 앱은 항상 고정 주소)
-const REMOTE = (!app.isPackaged && process.env.DESKTERIOR_WEB_URL) || "https://deskterior-one.vercel.app";
+const REMOTE = (!app.isPackaged && process.env.DESKTERIOR_WEB_URL) || "https://deskboard-one.vercel.app"; // 예전 주소(deskterior-one)는 이 주소로 넘겨줌
 const RELEASES_API = "https://api.github.com/repos/dgim9390/DeskBoard/releases/latest";
 const RELEASES_PAGE = "https://github.com/dgim9390/DeskBoard/releases/latest";
 

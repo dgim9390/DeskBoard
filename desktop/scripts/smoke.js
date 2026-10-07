@@ -21,7 +21,7 @@ app.on("browser-window-created", (_e, win) => {
       picker: document.body.innerText.includes("장비 추가"),
       linkCard: !!document.querySelector('[aria-label="링크로 제품 추가"]'),
       // 맥 앱(app://)에서 배포된 링크 읽기 서버 호출 가능 여부
-      linkApi: await fetch("https://deskterior-one.vercel.app/api/product-preview?url=" + encodeURIComponent("https://www.keychron.com/products/keychron-k8-pro-qmk-via-wireless-mechanical-keyboard"))
+      linkApi: await fetch("https://deskboard-one.vercel.app/api/product-preview?url=" + encodeURIComponent("https://www.keychron.com/products/keychron-k8-pro-qmk-via-wireless-mechanical-keyboard"))
         .then((r) => r.json()).then((j) => j.title || j.message).catch((e) => "ERR " + e.message),
       localStorage: (() => { try { localStorage.setItem("__t", "1"); return localStorage.getItem("__t") === "1"; } catch (e) { return String(e); } })(),
     }))()`).catch((e) => ({ error: String(e) }));
