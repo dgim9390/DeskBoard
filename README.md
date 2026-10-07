@@ -4,128 +4,142 @@
 
 # Deskterior
 
-**내 책상을 실제 크기로 꾸미고, 3D로 둘러보는 데스크테리어 시뮬레이터**
+실제 치수 기반의 데스크 셋업 시뮬레이터
 
-[![Download .dmg](https://img.shields.io/badge/Download-.dmg-6366F1?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/dgim9390/deskterior/releases/latest)
-[![Open Web](https://img.shields.io/badge/Web-바로_쓰기-18181B?style=for-the-badge&logo=vercel&logoColor=white)](https://deskterior-one.vercel.app)
+[![Download](https://img.shields.io/badge/Download-macOS_.dmg-6366F1?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/dgim9390/deskterior/releases/latest)
+[![Web](https://img.shields.io/badge/Web-deskterior--one.vercel.app-18181B?style=for-the-badge&logo=vercel&logoColor=white)](https://deskterior-one.vercel.app)
 
-[![Release](https://img.shields.io/github/v/release/dgim9390/deskterior?style=flat-square&color=6366F1&label=version)](https://github.com/dgim9390/deskterior/releases/latest)
-![macOS](https://img.shields.io/badge/macOS-Apple_Silicon-000000?style=flat-square&logo=apple)
+[![Release](https://img.shields.io/github/v/release/dgim9390/deskterior?style=flat-square&color=6366F1&label=release)](https://github.com/dgim9390/deskterior/releases/latest)
+![Platform](https://img.shields.io/badge/platform-macOS_(Apple_Silicon)_|_Web-000000?style=flat-square)
 ![Expo](https://img.shields.io/badge/Expo-React_Native-000020?style=flat-square&logo=expo)
-![three.js](https://img.shields.io/badge/3D-three.js-000000?style=flat-square&logo=threedotjs)
+![three.js](https://img.shields.io/badge/three.js-3D-000000?style=flat-square&logo=threedotjs)
 
-<img src="docs/screenshot.png" width="760" alt="맥북·27인치 모니터로 꾸민 데스크테리어 (2D)" />
+<img src="docs/screenshot.png" width="760" alt="Deskterior 시뮬레이터 (2D)" />
 
 </div>
 
-<br/>
+## 개요
 
-## 다운로드 · 설치
+Deskterior는 책상과 장비를 실제 크기(cm)로 배치해 데스크 셋업을 미리 구성해 보는 애플리케이션입니다.
+위에서 내려다본 2D 편집 화면과 3D 보기를 함께 제공하며, 제품 페이지 링크만으로 실제 제품을 불러와 배치할 수 있습니다.
+macOS 앱과 웹에서 동일하게 동작하고, 로그인하면 저장한 셋업이 기기 간에 동기화됩니다.
 
-1. **[Releases](https://github.com/dgim9390/deskterior/releases/latest)** → **Assets** 에서 `Deskterior-x.x.x-arm64.dmg` 다운로드
-2. `.dmg` 를 열고 **Deskterior** 를 **Applications** 폴더로 드래그
-3. 응용 프로그램에서 **Deskterior** 실행
+<img src="docs/screenshot-3d.png" width="760" alt="Deskterior 3D 보기" />
 
-> [!NOTE]
-> Apple Silicon 맥 전용이에요 (M1 ~ M5, A18 Pro 맥북 네오). 인텔 맥은 지원하지 않아요.
-> 설치 없이 쓰려면 **[웹에서 바로 쓰기](https://deskterior-one.vercel.app)** 를 눌러 주세요.
+## 주요 기능
 
-## 앱이 열리지 않을 때
+| 구분 | 기능 | 설명 |
+| --- | --- | --- |
+| 배치 | 실제 치수 편집 | 책상 크기와 장비 크기를 cm 단위로 입력하고 실제 비율로 배치 |
+| | 자유 편집 | 이동, 크기 조절, 회전, 앞뒤 순서, 색상, 복제, 중앙 정렬 가이드 |
+| | 장비 결합 | 모니터 암, 노트북 받침대, 수직 거치대를 장비와 결합하거나 분리 |
+| | 실행 취소 | 모든 편집에 대해 실행 취소 및 다시 실행 |
+| 시각화 | 3D 보기 | 2D 화면과 3D 화면을 전환하고, 회전 및 확대로 셋업을 확인 |
+| | 상판 및 조명 | 상판 재질 6종, 조명 3종(낮, 저녁, 밤) |
+| 제품 | 링크로 추가 | 제품 페이지에서 이름, 대표 사진, 크기(가로 × 깊이 × 높이)를 자동으로 추출 |
+| | 배경 제거 | 단색 배경의 제품 사진에서 배경을 제거하고 제품 영역만 사용 |
+| | 사진 선택 | 페이지 내 다른 사진을 선택하거나 직접 이미지 파일을 업로드 |
+| | 추천 | 완성된 셋업 템플릿과 현재 책상 구성에 맞춘 제품 추천 |
+| 저장 | 셋업 저장 | 계정에 저장해 macOS 앱, 웹, 다른 기기에서 동일하게 사용 |
+| | 이미지 내보내기 | 2D 또는 3D 화면을 PNG 파일로 저장 |
 
-개인 배포 앱이라 처음 한 번 macOS 보안 경고가 떠요. 아래처럼 허용하면 그다음부터는 바로 열려요.
+## 설치
 
-1. 경고 창에서 **완료** 클릭 (*휴지통으로 이동은 누르지 마세요*)
-2. **시스템 설정** → **개인정보 보호 및 보안**
-3. **제일 하단**으로 스크롤 → **그래도 열기** 클릭
-4. **비밀번호** 입력 → **열기**
+**macOS (Apple Silicon 전용, M1 이후 모델)**
 
-<details>
-<summary><sub>"손상되었습니다" 가 뜨고 그래도 열기 버튼이 없다면</sub></summary>
+1. [Releases](https://github.com/dgim9390/deskterior/releases/latest) 페이지의 Assets에서 `Deskterior-x.x.x-arm64.dmg`를 다운로드합니다.
+2. `.dmg` 파일을 열고 Deskterior를 Applications 폴더로 드래그합니다.
+3. 응용 프로그램 폴더에서 Deskterior를 실행합니다.
 
-<br/>
+**웹**
 
-터미널에서 한 번 실행한 뒤 다시 열어 주세요.
+별도 설치 없이 [deskterior-one.vercel.app](https://deskterior-one.vercel.app)에서 사용할 수 있습니다.
+
+### 앱이 열리지 않는 경우
+
+Apple 공증을 거치지 않은 개인 배포 앱이므로, 처음 실행할 때 macOS 보안 경고가 표시됩니다. 아래 절차로 한 번만 허용하면 이후에는 정상적으로 실행됩니다.
+
+1. 경고 창에서 **완료**를 선택합니다. (**휴지통으로 이동**은 선택하지 않습니다.)
+2. **시스템 설정** → **개인정보 보호 및 보안**으로 이동합니다.
+3. 화면 하단으로 스크롤한 뒤 **그래도 열기**를 선택합니다.
+4. 비밀번호를 입력하고 **열기**를 선택합니다.
+
+"손상되었기 때문에 열 수 없습니다"라는 메시지가 표시되고 **그래도 열기** 항목이 없다면, 터미널에서 다음 명령을 실행한 뒤 다시 엽니다.
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Deskterior.app
 ```
 
-</details>
-
 ## 업데이트
 
-- **화면 업데이트**: 앱을 켜면 *새 업데이트가 준비됐어요* 알림이 떠요 → **지금 적용** 한 번이면 끝이에요. 메뉴 **Deskterior → 업데이트 확인…** 으로 직접 확인할 수도 있어요.
-- **앱 업데이트**: 새 버전이 나오면 알려 줘요. 새 `.dmg` 를 받아 **Applications** 에 드래그 → **대치** 하면 돼요. 지우고 다시 설치할 필요 없어요.
+| 종류 | 방법 |
+| --- | --- |
+| 화면 업데이트 | 앱 실행 시 표시되는 알림에서 **지금 적용**을 선택합니다. 메뉴 막대의 **Deskterior → 업데이트 확인…**으로 직접 확인할 수도 있습니다. |
+| 앱 업데이트 | 새 버전의 `.dmg`를 내려받아 Applications 폴더로 드래그하고 **대치**를 선택합니다. 기존 앱을 삭제할 필요는 없습니다. |
 
-저장한 셋업, 로그인, 내 제품은 업데이트해도 그대로 남아요.
+저장한 셋업, 로그인 정보, 내 제품 목록은 업데이트 후에도 유지됩니다.
 
-## 기능
+## 사용 안내
 
-<img src="docs/screenshot-3d.png" width="760" alt="같은 책상을 3D로 본 모습 (저녁 조명)" />
+### 링크로 제품 추가
 
-**책상 꾸미기**
-- 📐 **실제 크기 배치**: 책상 크기(cm)에 맞춰 장비를 실제 비율로 놓아요
-- 🧊 **3D 보기**: 오른쪽 위 **3D** 버튼으로 위에서 본 화면 ↔ 3D 전환, 드래그로 돌리고 스크롤로 확대해요
-- 🌙 **상판 · 조명**: 상판 6종(오크 · 월넛 · 메이플 · 화이트 · 블랙 · 콘크리트), 조명은 낮 · 저녁 · 밤
-- ✋ **자유 편집**: 드래그 · 크기 · 회전 · 앞뒤 순서 · 색상 · 복제 · 중앙 맞춤
-- 🧩 **결합**: 모니터 암, 노트북 받침대, 수직 거치대
-- ↩️ **되돌리기**: 실수해도 한 번에 되돌리기 · 다시하기
+- 제조사 공식 홈페이지의 제품 상세 페이지 링크를 권장합니다. (예: Apple, Logitech, Keychron, Xbox)
+- 쿠팡, 네이버 스마트스토어 등 자동 수집을 차단하는 쇼핑몰 링크는 지원하지 않습니다. 이 경우 이름과 크기를 직접 입력하고, 상품 이미지를 저장한 뒤 **사진 올리기**로 등록합니다.
+- 제품 페이지에 치수가 기재되어 있으면 가로, 깊이, 높이가 자동으로 입력됩니다. 높이는 3D 보기에 사용되며, 비워 두면 제품 종류에 따라 자동으로 결정됩니다.
 
-**제품 넣기**
-- 🔗 **링크로 추가**: 제품 페이지 링크로 이름 · 사진 · 크기(가로 × 깊이 × 높이)를 자동으로 불러와요
-- ✂️ **배경 자동 지우기**: 흰 배경 제품 사진은 배경을 지워 제품만 책상에 올려요
-- 🖼️ **사진 고르기 · 올리기**: 페이지의 다른 사진으로 바꾸거나, 내 컴퓨터의 사진을 올릴 수 있어요
-- ✨ **추천 셋업 · 추천 제품**: 개발자 · 미니멀 · 게이밍 등 완성된 책상으로 시작하고, 내 책상에 맞는 제품을 추천받아요
-
-**저장 · 공유**
-- 💾 **셋업 저장**: 로그인하면 맥 앱 · 웹 · 다른 기기에서 같은 셋업을 불러와요
-- 📸 **이미지로 저장**: 2D · 3D 화면을 그대로 PNG로 저장해요
-
-> [!TIP]
-> **링크로 추가할 때는 제조사 공식 홈페이지의 제품 링크**가 가장 잘 불러와져요 (로지텍 · 애플 · 키크론 · Xbox 등).
-> **쿠팡 링크는 지원하지 않아요.** 쿠팡 · 네이버 스마트스토어 같은 쇼핑몰은 자동으로 읽는 것을 막아 두었어요. 이럴 땐 이름과 크기를 직접 넣고, 상품 사진을 저장해 **사진 올리기**로 넣어 주세요.
-
-<details>
-<summary><b>단축키</b></summary>
-
-<br/>
+### 단축키
 
 | 키 | 동작 |
 | --- | --- |
-| `⌘Z` / `⌘⇧Z` | 되돌리기 / 다시하기 |
+| `⌘Z` / `⌘⇧Z` | 실행 취소 / 다시 실행 |
 | `⌘D` | 선택한 장비 복제 |
 | `⌫` | 선택한 장비 삭제 |
-| `←` `↑` `→` `↓` | 1cm 이동 (`⇧` 누르면 5cm) |
+| `←` `↑` `→` `↓` | 1cm 이동 (`⇧`와 함께 누르면 5cm) |
 | `⌘S` | 셋업 저장 |
 | `esc` | 선택 해제 |
 
-</details>
+### 화면 구성
 
-<details>
-<summary><b>화면 구성</b></summary>
+| 화면 | 내용 |
+| --- | --- |
+| 시뮬레이터 | 책상 편집 화면과 장비 추가 패널. 넓은 화면에서는 패널이 오른쪽에 표시되며 접을 수 있습니다. |
+| 추천 기기 | 셋업 템플릿과 현재 책상 구성에 맞춘 추천 제품 |
+| 내 셋업 | 저장한 셋업 불러오기, 덮어쓰기, 삭제 |
 
-<br/>
+## 개발
 
-- **시뮬레이터**: 책상 화면 + 오른쪽 **장비 추가** 패널 (접기 › 를 누르면 접혀서 책상이 넓어져요. 휴대폰에서는 아래에 있어요)
-- **추천 기기**: 추천 셋업과 내 책상에 맞춘 추천 제품
-- **내 셋업**: 저장한 셋업 불러오기 · 덮어쓰기 · 삭제
-
-</details>
-
-<details>
-<summary><b>개발</b></summary>
-
-<br/>
+### 실행
 
 ```bash
-npm install && npx expo start              # w: 웹 · i: iOS 시뮬레이터
-cd desktop && npm install && npm run dist  # 맥 앱 → desktop/release/*.dmg
+npm install
+npx expo start                 # w: 웹, i: iOS 시뮬레이터
 ```
 
-- `.env.example` → `.env` 에 Supabase 값 입력, 스키마는 `supabase/schema.sql`
-- 링크 읽기 `api/product-preview.js` · 사진 중계 `api/image-proxy.js` (Vercel 서버리스)
-- 3D 보기 `lib/desk3d/` · 배경 지우기 `lib/cutout.ts`
+### macOS 앱 빌드
 
-**Stack** · Expo (React Native, Expo Router) · NativeWind · Zustand · Reanimated · three.js · Supabase · Vercel · Electron
+```bash
+cd desktop
+npm install
+npm run dist                   # desktop/release/*.dmg 생성
+```
 
-</details>
+### 환경 설정
+
+- `.env.example`을 복사해 `.env`를 만들고 Supabase 프로젝트 URL과 공개 키를 입력합니다.
+- 데이터베이스 스키마는 `supabase/schema.sql`에 있습니다.
+
+### 구조
+
+| 경로 | 역할 |
+| --- | --- |
+| `app/` | 화면 구성 (Expo Router) |
+| `components/` | UI 컴포넌트 (캔버스, 장비 패널, 3D 보기 등) |
+| `store/` | 상태 관리 및 로컬 저장, 계정 동기화 (Zustand) |
+| `lib/desk3d/` | 3D 장면과 제품 모델 (three.js) |
+| `lib/cutout.ts` | 제품 사진 배경 제거 |
+| `api/` | 제품 페이지 분석, 이미지 중계 (Vercel 서버리스 함수) |
+| `desktop/` | macOS 앱 (Electron) 및 자동 업데이트 |
+
+### 기술 스택
+
+Expo (React Native, Expo Router) · NativeWind · Zustand · Reanimated · three.js · Supabase · Vercel · Electron
