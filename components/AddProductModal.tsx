@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { pickImageFile, rankImages, removeBackground } from "@/lib/cutout";
-import { canReadBlockedSites, defaultSize, fetchProductPreview, guessProduct, normalizeUrl, resolveDimensions, SHAPE_CHOICES, type ProductPreview } from "@/lib/productLink";
+import { defaultSize, fetchProductPreview, guessProduct, normalizeUrl, resolveDimensions, SHAPE_CHOICES, type ProductPreview } from "@/lib/productLink";
 import type { Category, CustomProduct, ItemColor, ProductKind } from "@/store/useDeskStore";
 import { ProductImage } from "./ProductImage";
 
@@ -170,7 +170,6 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
   const hn = toNum(h);
   const tn = toTall(tall);
   const canAdd = editing && name.trim().length > 0 && wn !== null && hn !== null && tn !== null && !loading;
-  const appReads = canReadBlockedSites();
   const photoUri = imageUrl.trim() && /^(https?:\/\/|data:image\/)/i.test(imageUrl.trim()) ? imageUrl.trim() : undefined;
 
   // 사진이 정해지면 자동으로 배경 지우기 (주소를 고치는 중에는 잠깐 기다림)
@@ -241,9 +240,7 @@ export function AddProductModal({ visible, onClose, onAdd }: Props) {
                 <Ionicons name="information-circle-outline" size={14} color="#a1a1aa" style={{ marginTop: 1 }} />
                 <Text className="ml-1.5 flex-1 text-xs leading-4 text-zinc-500">
                   예) 로지텍·애플·키크론·BenQ 공식몰 ✅{"\n"}
-                  {appReads
-                    ? "쿠팡 링크도 바로 불러와요 ✅ 네이버 스마트스토어 등 일부 쇼핑몰은 막혀 있을 수 있어요."
-                    : "쿠팡 링크는 맥 앱에서 불러올 수 있어요. 웹에서는 이름·크기를 직접 넣고 사진을 올려 주세요."}
+                  쿠팡·네이버 스마트스토어 같은 쇼핑몰 링크는 지원하지 않아요. 이름·크기를 직접 넣고 사진을 올려 주세요.
                 </Text>
               </View>
 

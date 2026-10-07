@@ -33,16 +33,13 @@ function apiBase() {
 /** 다른 사이트 사진을 링크 읽기 서버를 거쳐 받는 주소 (배경 지우기에 필요한 픽셀 읽기용) */
 export const imageProxyUrl = (url: string) => `${apiBase()}/api/image-proxy?url=${encodeURIComponent(url)}`;
 
-/** 서버 접속을 막는 쇼핑몰. 맥 앱에서는 앱이 직접 페이지를 열어 읽음 */
+/** 자동으로 읽는 것을 막아 둔 쇼핑몰 (지원하지 않음) */
 const SERVER_BLOCKED = /(^|\.)(coupang\.com|coupa\.ng)$/i;
 
 /** 맥 앱(Electron)이 제공하는 페이지 읽기. 웹 브라우저에서는 없음 */
 type PageReader = (url: string) => Promise<{ html: string; finalUrl: string }>;
 const pageReader = (): PageReader | undefined =>
   Platform.OS === "web" && typeof window !== "undefined" ? (window as unknown as { deskterior?: { readPage?: PageReader } }).deskterior?.readPage : undefined;
-
-/** 서버가 막힌 쇼핑몰(쿠팡 등)도 읽을 수 있는지 = 맥 앱(1.2 이상) */
-export const canReadBlockedSites = () => !!pageReader();
 
 class PreviewError extends Error {
   constructor(
@@ -84,14 +81,7 @@ export async function fetchProductPreview(rawUrl: string): Promise<ProductPrevie
   const host = new URL(url).hostname;
   const read = pageReader();
   if (SERVER_BLOCKED.test(host)) {
-    if (read) return fromApp(read, url);
-    // 예전 맥 앱(1.1.x)은 화면만 자동 업데이트되고 페이지 읽기 기능이 없음
-    if (typeof navigator !== "undefined" && /Electron/.test(navigator.userAgent)) {
-      throw new PreviewError("쿠팡 링크는 맥 앱 1.2부터 불러올 수 있어요. GitHub에서 새 버전(.dmg)을 받아 덮어 설치해 주세요. 지금은 아래에서 직접 입력할 수 있어요.");
-    }
-    throw new PreviewError(
-      "쿠팡 링크는 맥 앱(1.2 이상)에서 바로 불러올 수 있어요. 웹에서는 아래에 이름·크기를 직접 입력하고, 상품 사진은 저장해서 '사진 올리기'로 넣어 주세요.",
-    );
+    throw new PreviewError("쿠팡 링크는 지원하지 않아요. 아래에 이름·크기를 직접 입력하고, 상품 사진은 저장해서 '사진 올리기'로 넣어 주세요.");
   }
   try {
     return await fromServer(url);
