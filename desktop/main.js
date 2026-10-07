@@ -1,4 +1,5 @@
-// Deskterior macOS 앱 (Electron)
+// DeskBoard - 데스크보드 macOS 앱 (Electron)
+// (예전 이름 Deskterior. 저장 위치·앱 주소는 데이터 유지를 위해 예전 이름 그대로 씀)
 // Expo 웹 빌드(web/)를 앱 안에 넣고 app://deskterior 주소로 띄운다.
 // file:// 로 열면 절대경로(/_expo/...)와 localStorage가 깨지므로 전용 프로토콜을 쓴다.
 const { app, BrowserWindow, ipcMain, Menu, net, protocol, shell } = require("electron");
@@ -11,6 +12,12 @@ const pageReader = require("./pageReader");
 const SCHEME = "app";
 const HOST = "deskterior";
 const WEB_ROOT = path.join(__dirname, "web");
+// 앱 이름을 DeskBoard 로 바꿔도 예전(Deskterior) 데이터 폴더를 그대로 써서 셋업·로그인·창 위치 유지
+// (시험용으로 다른 폴더를 지정한 경우는 건드리지 않음)
+if (path.basename(app.getPath("userData")) === "DeskBoard") {
+  app.setPath("userData", path.join(app.getPath("appData"), "Deskterior"));
+}
+
 const STATE_FILE = () => path.join(app.getPath("userData"), "window-state.json");
 
 // 일반 웹사이트처럼 동작하도록 권한 부여 (localStorage, fetch, 보안 컨텍스트)
@@ -64,7 +71,7 @@ function createWindow() {
     ...state,
     minWidth: 420,
     minHeight: 700,
-    title: "Deskterior",
+    title: "DeskBoard",
     backgroundColor: "#09090b",
     show: false,
     webPreferences: {
@@ -122,7 +129,7 @@ function buildMenu() {
     {
       label: app.name,
       submenu: [
-        { role: "about", label: "Deskterior 정보" },
+        { role: "about", label: "DeskBoard 정보" },
         {
           label: "업데이트 확인…",
           click: () => {
@@ -131,11 +138,11 @@ function buildMenu() {
           },
         },
         { type: "separator" },
-        { role: "hide", label: "Deskterior 가리기" },
+        { role: "hide", label: "DeskBoard 가리기" },
         { role: "hideOthers", label: "기타 가리기" },
         { role: "unhide", label: "모두 보기" },
         { type: "separator" },
-        { role: "quit", label: "Deskterior 종료" },
+        { role: "quit", label: "DeskBoard 종료" },
       ],
     },
     {

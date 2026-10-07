@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deskterior 앱 아이콘 생성기 → build/icon.svg
+"""DeskBoard 앱 아이콘 생성기 → build/icon.svg
 
 3D 좌표(x: 오른쪽, y: 앞쪽, z: 위쪽, 단위는 대략 mm)를 아이소메트릭으로 투영해
 책상·모니터·키보드·마우스를 그린다. 보이는 면은 윗면(z), 앞면(+y), 오른쪽 면(+x).

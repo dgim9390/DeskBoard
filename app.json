@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Deskterior",
+    "name": "DeskBoard",
     "slug": "deskterior",
     "scheme": "deskterior",
     "version": "1.0.0",
@@ -10,6 +10,7 @@
     "plugins": ["expo-router"],
     "experiments": { "typedRoutes": true },
     "ios": { "supportsTablet": true },
-    "android": { "backgroundColor": "#09090b" }
+    "android": { "backgroundColor": "#09090b" },
+    "web": { "name": "DeskBoard - 데스크보드", "shortName": "DeskBoard" }
   }
 }

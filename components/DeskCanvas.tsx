@@ -78,7 +78,7 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
     setExporting(true);
     try {
       await new Promise((r) => setTimeout(r, 150)); // 도구 모음이 사라진 화면이 그려질 때까지
-      await exportNodeAsPng(rootRef.current, { backgroundColor: room, fileName: `deskterior-${desk.width}x${desk.depth}` });
+      await exportNodeAsPng(rootRef.current, { backgroundColor: room, fileName: `deskboard-${desk.width}x${desk.depth}` });
       toast("이미지를 저장했어요", { icon: "image-outline" });
     } catch {
       toast("이미지를 만들지 못했어요. 다시 시도해 주세요");
@@ -187,7 +187,7 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
       {exporting ? (
         // 저장 이미지에만 들어가는 표시
         <View pointerEvents="none" className="absolute bottom-3 right-4 flex-row items-center">
-          <Text className="text-xs font-bold tracking-wide text-white/70">Deskterior</Text>
+          <Text className="text-xs font-bold tracking-wide text-white/70">DeskBoard</Text>
           <Text className="ml-2 text-[11px] text-white/45">
             {desk.width}×{desk.depth}cm · 장비 {deskItems.length}개
           </Text>

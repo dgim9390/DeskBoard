@@ -1,4 +1,4 @@
-// Deskterior 맥 앱 업데이트
+// DeskBoard 맥 앱 업데이트
 //
 // 1) 화면(웹) 업데이트 — 다시 설치 없이 적용
 //    배포 사이트의 최신 화면(index.html + 참조 파일)을 받아 userData/web-live/<해시>/ 에 저장하고,
@@ -149,7 +149,7 @@ const newer = (a, b) => {
 /** GitHub 최신 릴리스 버전 (없거나 실패하면 null) */
 async function latestAppVersion() {
   try {
-    const res = await net.fetch(RELEASES_API, { headers: { Accept: "application/vnd.github+json", "User-Agent": "Deskterior" } });
+    const res = await net.fetch(RELEASES_API, { headers: { Accept: "application/vnd.github+json", "User-Agent": "DeskBoard" } });
     if (!res.ok) return null;
     const { tag_name: tag } = await res.json();
     return typeof tag === "string" ? tag.replace(/^v/, "") : null;
@@ -168,7 +168,7 @@ async function promptAppUpdate(win, version, { force = false } = {}) {
     defaultId: 0,
     cancelId: 1,
     message: `새 앱 버전 ${version}이 나왔어요`,
-    detail: `지금 버전: ${app.getVersion()}\n\n받은 .dmg를 열어 Deskterior를 Applications 폴더에 끌어다 놓고 "대치"를 누르면 돼요. 기존 앱을 지울 필요는 없고, 저장한 셋업과 로그인은 그대로 남아요.`,
+    detail: `지금 버전: ${app.getVersion()}\n\n받은 .dmg를 열어 DeskBoard를 Applications 폴더에 끌어다 놓고 "대치"를 누르면 돼요. 기존 앱을 지울 필요는 없고, 저장한 셋업과 로그인은 그대로 남아요.`,
   });
   if (response === 0) shell.openExternal(RELEASES_PAGE);
 }

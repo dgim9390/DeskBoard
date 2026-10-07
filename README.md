@@ -1,30 +1,30 @@
 <div align="center">
 
-<img src="desktop/build/icon.png" width="96" alt="Deskterior" />
+<img src="desktop/build/icon.png" width="96" alt="DeskBoard" />
 
-# Deskterior
+# DeskBoard
 
-실제 치수 기반의 데스크 셋업 시뮬레이터
+데스크보드 · 실제 치수 기반의 데스크 셋업 시뮬레이터
 
 [![Download](https://img.shields.io/badge/Download-macOS_.dmg-6366F1?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/dgim9390/deskterior/releases/latest)
-[![Web](https://img.shields.io/badge/Web-deskterior--one.vercel.app-18181B?style=for-the-badge&logo=vercel&logoColor=white)](https://deskterior-one.vercel.app)
+[![Web](https://img.shields.io/badge/Web-브라우저에서_사용-18181B?style=for-the-badge&logo=vercel&logoColor=white)](https://deskterior-one.vercel.app)
 
 [![Release](https://img.shields.io/github/v/release/dgim9390/deskterior?style=flat-square&color=6366F1&label=release)](https://github.com/dgim9390/deskterior/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-macOS_(Apple_Silicon)_|_Web-000000?style=flat-square)
 ![Expo](https://img.shields.io/badge/Expo-React_Native-000020?style=flat-square&logo=expo)
 ![three.js](https://img.shields.io/badge/three.js-3D-000000?style=flat-square&logo=threedotjs)
 
-<img src="docs/screenshot.png" width="760" alt="Deskterior 시뮬레이터 (2D)" />
+<img src="docs/screenshot.png" width="760" alt="DeskBoard 시뮬레이터 (2D)" />
 
 </div>
 
 ## 개요
 
-Deskterior는 책상과 장비를 실제 크기(cm)로 배치해 데스크 셋업을 미리 구성해 보는 애플리케이션입니다.
+DeskBoard(데스크보드)는 책상과 장비를 실제 크기(cm)로 배치해 데스크 셋업을 미리 구성해 보는 애플리케이션입니다.
 위에서 내려다본 2D 편집 화면과 3D 보기를 함께 제공하며, 제품 페이지 링크만으로 실제 제품을 불러와 배치할 수 있습니다.
 macOS 앱과 웹에서 동일하게 동작하고, 로그인하면 저장한 셋업이 기기 간에 동기화됩니다.
 
-<img src="docs/screenshot-3d.png" width="760" alt="Deskterior 3D 보기" />
+<img src="docs/screenshot-3d.png" width="760" alt="DeskBoard 3D 보기" />
 
 ## 주요 기능
 
@@ -47,9 +47,9 @@ macOS 앱과 웹에서 동일하게 동작하고, 로그인하면 저장한 셋�
 
 **macOS (Apple Silicon 전용, M1 이후 모델)**
 
-1. [Releases](https://github.com/dgim9390/deskterior/releases/latest) 페이지의 Assets에서 `Deskterior-x.x.x-arm64.dmg`를 다운로드합니다.
-2. `.dmg` 파일을 열고 Deskterior를 Applications 폴더로 드래그합니다.
-3. 응용 프로그램 폴더에서 Deskterior를 실행합니다.
+1. [Releases](https://github.com/dgim9390/deskterior/releases/latest) 페이지의 Assets에서 `DeskBoard-x.x.x-arm64.dmg`를 다운로드합니다.
+2. `.dmg` 파일을 열고 DeskBoard를 Applications 폴더로 드래그합니다.
+3. 응용 프로그램 폴더에서 DeskBoard를 실행합니다.
 
 **웹**
 
@@ -67,17 +67,20 @@ Apple 공증을 거치지 않은 개인 배포 앱이므로, 처음 실행할 �
 "손상되었기 때문에 열 수 없습니다"라는 메시지가 표시되고 **그래도 열기** 항목이 없다면, 터미널에서 다음 명령을 실행한 뒤 다시 엽니다.
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/Deskterior.app
+xattr -dr com.apple.quarantine /Applications/DeskBoard.app
 ```
 
 ## 업데이트
 
 | 종류 | 방법 |
 | --- | --- |
-| 화면 업데이트 | 앱 실행 시 표시되는 알림에서 **지금 적용**을 선택합니다. 메뉴 막대의 **Deskterior → 업데이트 확인…**으로 직접 확인할 수도 있습니다. |
+| 화면 업데이트 | 앱 실행 시 표시되는 알림에서 **지금 적용**을 선택합니다. 메뉴 막대의 **DeskBoard → 업데이트 확인…**으로 직접 확인할 수도 있습니다. |
 | 앱 업데이트 | 새 버전의 `.dmg`를 내려받아 Applications 폴더로 드래그하고 **대치**를 선택합니다. 기존 앱을 삭제할 필요는 없습니다. |
 
 저장한 셋업, 로그인 정보, 내 제품 목록은 업데이트 후에도 유지됩니다.
+
+> [!NOTE]
+> 1.3.0부터 앱 이름이 Deskterior에서 **DeskBoard**로 바뀌었습니다. 새 버전을 설치한 뒤 응용 프로그램 폴더에 남은 Deskterior 앱은 휴지통으로 옮겨도 되며, 저장한 데이터는 그대로 유지됩니다.
 
 ## 사용 안내
 
