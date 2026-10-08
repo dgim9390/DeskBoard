@@ -62,37 +62,6 @@ export function deskTexture(material: DeskMaterial = "oak") {
   return { map: toTexture(c), edge: m.edge, sheen: m.sheen ?? 0 };
 }
 
-/** 모니터·노트북 화면: 은은한 배경화면 */
-export function screenTexture() {
-  const [c, g] = canvas(512, 288);
-  const bg = g.createLinearGradient(0, 0, c.width, c.height);
-  bg.addColorStop(0, "#1e2a5a");
-  bg.addColorStop(0.55, "#3a2e6e");
-  bg.addColorStop(1, "#0f3a4a");
-  g.fillStyle = bg;
-  g.fillRect(0, 0, c.width, c.height);
-  const blob = (x: number, y: number, r: number, color: string, a: number) => {
-    const rg = g.createRadialGradient(x, y, 0, x, y, r);
-    rg.addColorStop(0, color);
-    rg.addColorStop(1, "rgba(0,0,0,0)");
-    g.globalAlpha = a;
-    g.fillStyle = rg;
-    g.fillRect(0, 0, c.width, c.height);
-  };
-  blob(140, 90, 200, "#7c8cff", 0.55);
-  blob(400, 210, 220, "#2dd4bf", 0.35);
-  blob(330, 60, 160, "#f472b6", 0.25);
-  g.globalAlpha = 1;
-  // 메뉴 막대와 독
-  g.fillStyle = "rgba(255,255,255,0.12)";
-  g.fillRect(0, 0, c.width, 10);
-  g.fillStyle = "rgba(255,255,255,0.18)";
-  g.beginPath();
-  g.roundRect(c.width / 2 - 90, c.height - 26, 180, 18, 6);
-  g.fill();
-  return toTexture(c);
-}
-
 /** 이름이 적힌 상자 윗면 */
 export function labelTexture(text: string, dark: boolean) {
   const [c, g] = canvas(512, 256);
