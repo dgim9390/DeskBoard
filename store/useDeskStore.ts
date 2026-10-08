@@ -1,8 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { create } from "zustand";
 import { fetchSetups, removeSetup, upsertSetups } from "@/lib/cloud";
 import { clampInto, halfExtents, normalizeDeg } from "@/lib/geometry";
+import { putImages, imageStoreAvailable, parseWithRefs, pruneImages, stringifyWithRefs } from "@/lib/imageStore";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
+import { toast } from "@/lib/toast";
 
 export type Category = "monitor" | "keyboard" | "mouse" | "laptop" | "accessory";
 
@@ -622,10 +625,60 @@ function startAuth() {
 const STORAGE_KEY = "deskterior-store:v1";
 type Persisted = Pick<DeskState, "desk" | "deskItems" | "savedSetups" | "activeSetupId" | "customProducts">;
 
+// 사진(data:image)은 IndexedDB 보관함에 따로 두고 여기에는 참조만 저장 (localStorage 용량 약 5MB 대비)
+const useImageStore = Platform.OS === "web" && imageStoreAvailable();
+
+let pendingWrite: Persisted | null = null;
+let writing = false;
+let lastPrune = 0;
+let warnedFull = false;
+
+async function writeOne(data: Persisted) {
+  if (useImageStore) {
+    try {
+      const { json, images, keep } = stringifyWithRefs(data);
+      await putImages(images);
+      await AsyncStorage.setItem(STORAGE_KEY, json);
+      // 가끔씩 쓰지 않는 사진 정리 (방금 저장한 데이터가 가리키는 사진만 남김)
+      if (Date.now() - lastPrune > 60_000) {
+        lastPrune = Date.now();
+        await pruneImages(keep).catch(() => {});
+      }
+      return;
+    } catch {
+      // 보관함을 못 쓰면 예전 방식(사진까지 통째로)으로 저장
+    }
+  }
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+/** 가장 최근 상태만 차례로 기록 (끌어 옮기는 중 여러 번 바뀌어도 쌓이지 않게) */
+function schedulePersist(data: Persisted) {
+  pendingWrite = data;
+  if (writing) return;
+  writing = true;
+  (async () => {
+    while (pendingWrite) {
+      const next = pendingWrite;
+      pendingWrite = null;
+      try {
+        await writeOne(next);
+        warnedFull = false;
+      } catch {
+        if (!warnedFull) {
+          warnedFull = true;
+          toast("기기 저장 공간이 부족해 변경 내용을 저장하지 못했어요. 쓰지 않는 셋업이나 내 제품을 지워 주세요", { icon: "alert-circle-outline", duration: 6000 });
+        }
+      }
+    }
+    writing = false;
+  })();
+}
+
 AsyncStorage.getItem(STORAGE_KEY)
-  .then((raw) => {
+  .then(async (raw) => {
     if (raw) {
-      const saved = JSON.parse(raw) as Partial<Persisted>;
+      const saved = await parseWithRefs<Partial<Persisted>>(raw);
       useDeskStore.setState({
         ...(saved.desk && { desk: saved.desk }),
         ...(saved.deskItems && { deskItems: saved.deskItems }),
@@ -638,16 +691,18 @@ AsyncStorage.getItem(STORAGE_KEY)
   .catch(() => {})
   .finally(() => {
     // 불러온 뒤부터 변경을 저장 (불러오기 전 기본값으로 덮어쓰지 않도록)
-    let last = "";
-    useDeskStore.subscribe((s) => {
+    let last: unknown[] = [];
+    const persist = (s: DeskState) => {
       // 로그인 중인 셋업은 계정에 있으므로 기기에는 로그아웃 상태의 셋업만 보관
       const data: Persisted = { desk: s.desk, deskItems: s.deskItems, savedSetups: s.user ? [] : s.savedSetups, activeSetupId: s.activeSetupId, customProducts: s.customProducts };
-      const json = JSON.stringify(data);
-      if (json !== last) {
-        last = json;
-        AsyncStorage.setItem(STORAGE_KEY, json).catch(() => {});
-      }
-    });
+      // 상태는 바뀔 때마다 새 객체이므로 참조 비교로 충분 (매번 JSON으로 비교하지 않음)
+      const parts = [data.desk, data.deskItems, data.savedSetups, data.activeSetupId, data.customProducts];
+      if (parts.every((p, i) => p === last[i])) return;
+      last = parts;
+      schedulePersist(data);
+    };
+    persist(useDeskStore.getState()); // 예전 방식으로 저장된 사진을 보관함으로 옮김
+    useDeskStore.subscribe(persist);
     // 기기 저장을 먼저 불러온 뒤 로그인 상태 확인 (순서가 바뀌면 계정 목록을 기기 목록이 덮어씀)
     startAuth();
   });
