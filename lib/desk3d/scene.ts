@@ -85,8 +85,8 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
     }
     return m;
   };
-  // 모니터·노트북·태블릿 화면: 꺼진 화면처럼 반들반들한 검은 유리
-  const screenMat = new THREE.MeshStandardMaterial({ color: "#060608", roughness: 0.12, metalness: 0.2 });
+  // 모니터·노트북·태블릿 화면: 꺼진 화면처럼 짙은 회색 (반사가 강하면 밤 조명에서 불빛 점이 맺혀 살짝 무광)
+  const screenMat = new THREE.MeshStandardMaterial({ color: "#3a3c42", emissive: "#1d1e22", roughness: 0.55, metalness: 0 }); // 화면은 서 있어 빛을 덜 받으므로 은은한 자체 밝기를 더함
   screenMat.userData.cached = true;
   const clockMat = new THREE.MeshBasicMaterial({ map: clockTexture() });
   clockMat.userData.cached = true;
