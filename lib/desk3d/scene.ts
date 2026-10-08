@@ -63,7 +63,7 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
   controls.enableDamping = true;
   controls.dampingFactor = 0.09;
   controls.maxPolarAngle = Math.PI * 0.47; // 책상 밑으로 내려가지 않게
-  controls.minDistance = 35;
+  controls.minDistance = 25;
   controls.screenSpacePanning = true;
 
   // ── 공용 자원 (다시 그릴 때도 재사용) ──
@@ -363,6 +363,59 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
   el.addEventListener("pointerdown", onDown);
   el.addEventListener("pointerup", onUp);
 
+  // ── 확대·축소: 트랙패드 핀치는 손가락 벌린 만큼, 스크롤·휠은 부드럽게. 포인터가 가리키는 곳을 향해 ──
+  // (OrbitControls 기본 휠 확대는 핀치에 둔하고 항상 책상 가운데로만 다가감)
+  const zoomAt = (factor: number, clientX: number, clientY: number) => {
+    const offset = camera.position.clone().sub(controls.target);
+    const len = offset.length();
+    const next = THREE.MathUtils.clamp(len * factor, controls.minDistance, controls.maxDistance);
+    const f = next / len;
+    if (Math.abs(f - 1) < 1e-4) return;
+    // 포인터 아래 점을 기준으로 카메라와 시점 중심을 함께 당기거나 밂 → 그 점이 포인터 아래에 그대로 남음
+    const rect = el.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), camera);
+    // 기준점: 포인터가 가리키는 실제 표면(책상·제품·바닥), 없으면 시점 중심과 같은 깊이의 점
+    const hit = ray.intersectObjects(scene.children, true).find((h) => (h.object as THREE.Mesh).isMesh);
+    const viewDir = camera.getWorldDirection(new THREE.Vector3());
+    const pivot = hit ? hit.point.clone() : ray.ray.at(len / Math.max(0.2, ray.ray.direction.dot(viewDir)), new THREE.Vector3());
+    const target = controls.target.clone().sub(pivot).multiplyScalar(f).add(pivot);
+    // 시점 중심이 방 밖으로 빠지지 않게 책상 근처로 제한
+    if (lastDesk) {
+      target.x = THREE.MathUtils.clamp(target.x, -lastDesk.width / 2 - 30, lastDesk.width / 2 + 30);
+      target.z = THREE.MathUtils.clamp(target.z, -lastDesk.depth / 2 - 20, lastDesk.depth / 2 + 30);
+    }
+    target.y = THREE.MathUtils.clamp(target.y, 0, 60);
+    controls.target.copy(target);
+    camera.position.copy(target).add(offset.multiplyScalar(f));
+    dirty = true;
+  };
+  let lastPinchWheel = 0;
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault();
+    e.stopImmediatePropagation(); // OrbitControls 기본 휠 확대는 쓰지 않음
+    const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1);
+    // 핀치(브라우저가 ctrl+휠로 보냄): 손가락 배율과 같게. 두 손가락 스크롤·마우스 휠: 한 칸(100)에 약 16%
+    if (e.ctrlKey) lastPinchWheel = performance.now();
+    zoomAt(Math.exp(THREE.MathUtils.clamp(dy, -200, 200) * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX, e.clientY);
+  };
+  // 사파리 핀치는 휠 대신 gesture 이벤트로 옴
+  let gestureScale = 1;
+  type GestureEv = Event & { scale: number; clientX: number; clientY: number };
+  const onGestureStart = (e: Event) => {
+    e.preventDefault();
+    gestureScale = 1;
+  };
+  const onGestureChange = (e: Event) => {
+    e.preventDefault();
+    const g = e as GestureEv;
+    if (performance.now() - lastPinchWheel < 300 || !g.scale) return; // ctrl+휠도 오는 브라우저는 그쪽으로 처리
+    zoomAt(gestureScale / g.scale, g.clientX, g.clientY);
+    gestureScale = g.scale;
+  };
+  el.addEventListener("wheel", onWheel, { passive: false, capture: true });
+  el.addEventListener("gesturestart", onGestureStart);
+  el.addEventListener("gesturechange", onGestureChange);
+
   // ── 크기 맞춤·그리기 ──
   const resize = () => {
     const w = container.clientWidth;
@@ -414,6 +467,9 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
       ro.disconnect();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("wheel", onWheel, { capture: true });
+      el.removeEventListener("gesturestart", onGestureStart);
+      el.removeEventListener("gesturechange", onGestureChange);
       controls.dispose();
       disposeTree(scene);
       for (const m of [...matCache.values(), ...labelCache.values(), screenMat, clockMat, artMat, calendarMat]) disposeMaterial(m, true);
