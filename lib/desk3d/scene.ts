@@ -3,7 +3,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { imageProxyUrl } from "@/lib/productLink";
 import type { DeskItem, DeskMaterial, DeskSize, Lighting } from "@/store/useDeskStore";
 import { buildItem, monitorTop, supportTop, type MatOpts, type ModelCtx } from "./models";
-import { artTexture, calendarTexture, clockTexture, deskTexture, floorTexture, labelTexture } from "./textures";
+import { artTexture, calendarTexture, clockTexture, deskTexture, floorTexture, labelTexture, screenOffTexture } from "./textures";
 
 /**
  * 책상 3D 보기 (three.js, 웹·맥 앱 전용).
@@ -14,10 +14,10 @@ import { artTexture, calendarTexture, clockTexture, deskTexture, floorTexture, l
 const DESK_THICK = 3;
 const DESK_H = 73; // 바닥에서 상판 윗면까지
 
-const MOOD: Record<Lighting, { bg: string; wall: string; floor: number; hemi: [string, string, number]; sun?: { color: string; power: number; pos: [number, number, number] }; exposure: number }> = {
-  day: { bg: "#202024", wall: "#cfcac2", floor: 1, hemi: ["#ffffff", "#5b544c", 1.25], sun: { color: "#ffffff", power: 2.4, pos: [-0.5, 1.6, 1.1] }, exposure: 1 },
-  evening: { bg: "#160f0c", wall: "#b59c88", floor: 0.8, hemi: ["#ffd9b8", "#3a281c", 0.8], sun: { color: "#ffb27a", power: 1.7, pos: [1.1, 0.8, 0.9] }, exposure: 1.05 },
-  night: { bg: "#06070b", wall: "#6a6f80", floor: 0.55, hemi: ["#5a6a9c", "#0a0a10", 0.26], exposure: 1.2 },
+const MOOD: Record<Lighting, { bg: string; wall: string; floor: number; hemi: [string, string, number]; sun?: { color: string; power: number; pos: [number, number, number] }; exposure: number; screen: number }> = {
+  day: { bg: "#202024", wall: "#cfcac2", floor: 1, hemi: ["#ffffff", "#5b544c", 1.25], sun: { color: "#ffffff", power: 2.4, pos: [-0.5, 1.6, 1.1] }, exposure: 1, screen: 1 },
+  evening: { bg: "#160f0c", wall: "#b59c88", floor: 0.8, hemi: ["#ffd9b8", "#3a281c", 0.8], sun: { color: "#ffb27a", power: 1.7, pos: [1.1, 0.8, 0.9] }, exposure: 1.05, screen: 0.8 },
+  night: { bg: "#06070b", wall: "#6a6f80", floor: 0.55, hemi: ["#5a6a9c", "#0a0a10", 0.26], exposure: 1.2, screen: 0.45 },
 };
 
 export interface Desk3DState {
@@ -85,8 +85,9 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
     }
     return m;
   };
-  // 모니터·노트북·태블릿 화면: 꺼진 화면처럼 짙은 회색 (반사가 강하면 밤 조명에서 불빛 점이 맺혀 살짝 무광)
-  const screenMat = new THREE.MeshStandardMaterial({ color: "#3a3c42", emissive: "#1d1e22", roughness: 0.55, metalness: 0 }); // 화면은 서 있어 빛을 덜 받으므로 은은한 자체 밝기를 더함
+  // 모니터·노트북·태블릿 화면: 꺼진 화면. 검은 유리에 은은한 반사광을 그림으로 얹음 (조명 반사 점이 맺히지 않게 살짝 무광)
+  const screenTex = screenOffTexture();
+  const screenMat = new THREE.MeshStandardMaterial({ color: "#000000", emissive: "#ffffff", emissiveMap: screenTex, roughness: 0.5, metalness: 0 });
   screenMat.userData.cached = true;
   const clockMat = new THREE.MeshBasicMaterial({ map: clockTexture() });
   clockMat.userData.cached = true;
@@ -217,6 +218,7 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
     scene.background = new THREE.Color(m.bg);
     scene.fog = new THREE.Fog(m.bg, 450, 900);
     renderer.toneMappingExposure = m.exposure;
+    screenMat.emissiveIntensity = m.screen; // 어두운 방일수록 화면에 비치는 빛도 약하게
     hemi.color.set(m.hemi[0]);
     hemi.groundColor.set(m.hemi[1]);
     hemi.intensity = m.hemi[2];

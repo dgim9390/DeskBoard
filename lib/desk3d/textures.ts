@@ -62,6 +62,27 @@ export function deskTexture(material: DeskMaterial = "oak") {
   return { map: toTexture(c), edge: m.edge, sheen: m.sheen ?? 0 };
 }
 
+/** 꺼진 화면: 거의 검은 유리에 오른쪽 위로 은은하게 번지는 빛 반사 */
+export function screenOffTexture() {
+  const [c, g] = canvas(1024, 576);
+  g.fillStyle = "#050506";
+  g.fillRect(0, 0, c.width, c.height);
+  // 넓고 부드러운 반사광 (오른쪽 위)
+  const glow = g.createRadialGradient(c.width * 0.86, c.height * 0.12, 0, c.width * 0.86, c.height * 0.12, c.width * 0.62);
+  glow.addColorStop(0, "rgba(255,255,255,0.42)");
+  glow.addColorStop(0.4, "rgba(255,255,255,0.16)");
+  glow.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = glow;
+  g.fillRect(0, 0, c.width, c.height);
+  // 왼쪽 아래로 갈수록 더 깊은 검정
+  const shade = g.createLinearGradient(c.width, 0, 0, c.height);
+  shade.addColorStop(0, "rgba(0,0,0,0)");
+  shade.addColorStop(1, "rgba(0,0,0,0.5)");
+  g.fillStyle = shade;
+  g.fillRect(0, 0, c.width, c.height);
+  return toTexture(c);
+}
+
 /** 이름이 적힌 상자 윗면 */
 export function labelTexture(text: string, dark: boolean) {
   const [c, g] = canvas(512, 256);
