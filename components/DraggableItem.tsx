@@ -4,7 +4,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { clampInto, normalizeDeg } from "@/lib/geometry";
-import { MIN_ITEM_CM, useDeskStore, type DeskItem } from "@/store/useDeskStore";
+import { useDeskStore, type DeskItem } from "@/store/useDeskStore";
 import { SNAP_PX, type GuideState } from "./CenterGuides";
 import { DEFAULT_KIND, ProductImage } from "./ProductImage";
 
@@ -88,52 +88,6 @@ export function DraggableItem({ item, scale, originX, originY, deskWidthPx, desk
 
   const gesture = Gesture.Exclusive(pan, tap);
 
-  // ── 크기 조절: 우하단 핸들, 반대쪽(좌상단) 모서리 고정 ─────────
-  const tlx = useSharedValue(0);
-  const tly = useSharedValue(0);
-  const brx = useSharedValue(0);
-  const bry = useSharedValue(0);
-  const minPx = MIN_ITEM_CM * scale;
-  const maxPx = Math.max(deskWidthPx, deskHeightPx);
-
-  const resize = Gesture.Pan()
-    .onStart(() => {
-      const r = rot.value * D2R;
-      const c = Math.cos(r);
-      const s = Math.sin(r);
-      const cx = x.value + w.value / 2;
-      const cy = y.value + h.value / 2;
-      const hw = w.value / 2;
-      const hh = h.value / 2;
-      tlx.value = cx + -hw * c - -hh * s;
-      tly.value = cy + -hw * s + -hh * c;
-      brx.value = cx + hw * c - hh * s;
-      bry.value = cy + hw * s + hh * c;
-      active.value = true;
-    })
-    .onUpdate((e) => {
-      const r = rot.value * D2R;
-      const c = Math.cos(r);
-      const s = Math.sin(r);
-      const vx = brx.value + e.translationX - tlx.value;
-      const vy = bry.value + e.translationY - tly.value;
-      // 회전 좌표계(아이템 로컬)로 변환
-      const nw = Math.min(Math.max(vx * c + vy * s, minPx), maxPx);
-      const nh = Math.min(Math.max(-vx * s + vy * c, minPx), maxPx);
-      const ncx = tlx.value + (nw / 2) * c - (nh / 2) * s;
-      const ncy = tly.value + (nw / 2) * s + (nh / 2) * c;
-      w.value = nw;
-      h.value = nh;
-      x.value = ncx - nw / 2;
-      y.value = ncy - nh / 2;
-    })
-    .onEnd(() => {
-      runOnJS(commit)(x.value, y.value, w.value, h.value, rot.value);
-    })
-    .onFinalize(() => {
-      active.value = false;
-    });
-
   // ── 회전: 윗쪽 핸들, 중심 기준 ─────────────────────────
   const rcx = useSharedValue(0);
   const rcy = useSharedValue(0);
@@ -187,23 +141,8 @@ export function DraggableItem({ item, scale, originX, originY, deskWidthPx, desk
     opacity: active.value ? 0.94 : 1,
   }));
 
-  // 핸들 위치: 회전을 반영해 아이템 모서리/윗변에 붙임 (아이템과 형제 요소라 제스처가 겹치지 않음)
-  const resizeStyle = useAnimatedStyle(() => {
-    const r = rot.value * D2R;
-    const c = Math.cos(r);
-    const s = Math.sin(r);
-    const cx = x.value + w.value / 2;
-    const cy = y.value + h.value / 2;
-    const hw = w.value / 2;
-    const hh = h.value / 2;
-    return {
-      transform: [
-        { translateX: originX + cx + hw * c - hh * s - HANDLE / 2 },
-        { translateY: originY + cy + hw * s + hh * c - HANDLE / 2 },
-      ],
-    };
-  });
-
+  // 회전 핸들 위치: 회전을 반영해 아이템 윗변에 붙임 (아이템과 형제 요소라 제스처가 겹치지 않음)
+  // 크기는 실제 치수(cm)로만 정함: 아래 막대의 입력칸에서 바꿈
   const rotateStyle = useAnimatedStyle(() => {
     const r = rot.value * D2R;
     const d = h.value / 2 + STEM;
@@ -266,24 +205,14 @@ export function DraggableItem({ item, scale, originX, originY, deskWidthPx, desk
       </GestureDetector>
 
       {selected && (
-        <>
-          <GestureDetector gesture={rotate}>
-            <Animated.View
-              accessibilityLabel="회전"
-              style={[handleBase, { backgroundColor: "#6366f1", borderWidth: 2, borderColor: "#fff" }, rotateStyle]}
-            >
-              <Ionicons name="refresh" size={14} color="white" />
-            </Animated.View>
-          </GestureDetector>
-          <GestureDetector gesture={resize}>
-            <Animated.View
-              accessibilityLabel="크기 조절"
-              style={[handleBase, { backgroundColor: "#fff", borderWidth: 2, borderColor: "#6366f1" }, resizeStyle]}
-            >
-              <Ionicons name="resize" size={13} color="#6366f1" />
-            </Animated.View>
-          </GestureDetector>
-        </>
+        <GestureDetector gesture={rotate}>
+          <Animated.View
+            accessibilityLabel="회전"
+            style={[handleBase, { backgroundColor: "#6366f1", borderWidth: 2, borderColor: "#fff" }, rotateStyle]}
+          >
+            <Ionicons name="refresh" size={14} color="white" />
+          </Animated.View>
+        </GestureDetector>
       )}
     </>
   );
