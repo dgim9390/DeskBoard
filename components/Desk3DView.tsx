@@ -28,7 +28,15 @@ export function Desk3DView({ selectedId, onSelect, hideUi }: Props) {
       .then(({ createDesk3D }) => {
         const el = hostRef.current as unknown as HTMLElement | null;
         if (cancelled || !el) return;
-        engine.current = createDesk3D(el, { onSelect: (id) => onSelectRef.current(id) });
+        engine.current = createDesk3D(el, {
+          onSelect: (id) => onSelectRef.current(id),
+          // 3D에서 끌어 옮기면 2D와 같은 방식으로 저장 (책상 안으로 맞춤, 짝 위에 놓으면 결합, 되돌리기 가능)
+          onMove: (id, x, y) => {
+            const cur = useDeskStore.getState().deskItems.find((i) => i.id === id);
+            if (!cur) return;
+            return useDeskStore.getState().updateItemTransform(id, { x, y, width: cur.width, height: cur.height, rotation: cur.rotation });
+          },
+        });
         const s = useDeskStore.getState();
         engine.current.update({ desk: s.desk, items: s.deskItems, selectedId });
         setStatus("ready");
@@ -66,7 +74,7 @@ export function Desk3DView({ selectedId, onSelect, hideUi }: Props) {
       {status === "ready" && !hideUi && (
         <>
           <View pointerEvents="none" className="absolute bottom-3 left-3 rounded-full bg-black/45 px-3 py-1.5">
-            <Text className="text-[11px] text-zinc-300">드래그로 돌리기 · 스크롤로 확대 · 클릭해서 선택</Text>
+            <Text className="text-[11px] text-zinc-300">빈 곳을 끌어 돌리기 · 제품을 끌어 옮기기 · 스크롤로 확대</Text>
           </View>
           <Pressable
             onPress={() => engine.current?.resetView()}

@@ -46,7 +46,17 @@ function contains(i: DeskItem, desk: DeskSize, px: number, pz: number) {
   return Math.abs(lx) <= i.width / 2 && Math.abs(lz) <= i.height / 2;
 }
 
-export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: string | null) => void }): Desk3D {
+/** 넓고 납작해서 끌기보다 시점을 돌리려는 경우가 많은 제품: 선택했을 때만 끌어서 옮김 */
+const DRAG_WHEN_SELECTED = new Set(["desk-mat", "mouse-pad"]);
+
+export function createDesk3D(
+  container: HTMLElement,
+  opts: {
+    onSelect: (id: string | null) => void;
+    /** 3D에서 끌어 옮긴 제품의 새 위치(제품 왼쪽 위 모서리, cm). 결합되면 남는 제품 id를 돌려줌 */
+    onMove?: (id: string, x: number, y: number) => string | void;
+  },
+): Desk3D {
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); // 이미지 저장용으로 그림 유지
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.shadowMap.enabled = true;
@@ -364,20 +374,103 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
     dirty = true;
   }
 
-  // ── 클릭으로 선택 (드래그로 돌린 건 무시) ──
+  // ── 클릭으로 선택, 제품을 끌어서 옮기기 (빈 곳을 끌면 시점 돌리기) ──
   const ray = new THREE.Raycaster();
+  let currentItems: DeskItem[] = [];
   let down: { x: number; y: number } | null = null;
-  const onDown = (e: PointerEvent) => (down = { x: e.clientX, y: e.clientY });
-  const onUp = (e: PointerEvent) => {
-    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
-    down = null;
+  let drag: { id: string; item: DeskItem; obj: THREE.Object3D; plane: THREE.Plane; offset: THREE.Vector3; moved: boolean; pointerId: number } | null = null;
+  const aim = (e: PointerEvent) => {
     const rect = el.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera);
-    const hit = ray.intersectObjects(itemsGroup.children, true).find((h) => h.object.userData.itemId);
-    opts.onSelect(hit ? (hit.object.userData.itemId as string) : null);
   };
-  el.addEventListener("pointerdown", onDown);
+  const pickId = (e: PointerEvent) => {
+    aim(e);
+    const hit = ray.intersectObjects(itemsGroup.children, true).find((h) => h.object.userData.itemId);
+    return hit ? (hit.object.userData.itemId as string) : null;
+  };
+  const draggable = (id: string | null) => {
+    const item = id ? currentItems.find((i) => i.id === id) : undefined;
+    if (!item || !opts.onMove) return undefined;
+    return !DRAG_WHEN_SELECTED.has(item.kind ?? "") || id === selectedId ? item : undefined;
+  };
+  // OrbitControls보다 먼저 받아야 제품을 잡았을 때 시점이 돌아가지 않음 (capture)
+  const onDown = (e: PointerEvent) => {
+    down = { x: e.clientX, y: e.clientY };
+    if (e.button !== 0 || !lastDesk) return;
+    const id = pickId(e);
+    const item = draggable(id);
+    const obj = id ? itemObjects.get(id) : undefined;
+    if (!item || !obj) return;
+    // 제품이 놓인 높이의 수평면 위에서 움직임
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -obj.position.y);
+    const p = ray.ray.intersectPlane(plane, new THREE.Vector3());
+    if (!p) return;
+    drag = { id: item.id, item, obj, plane, offset: obj.position.clone().sub(p), moved: false, pointerId: e.pointerId };
+    controls.enabled = false;
+    try {
+      el.setPointerCapture(e.pointerId); // 캔버스 밖으로 끌어도 계속 따라오게
+    } catch {
+      // 포인터 캡처를 못 해도 캔버스 안에서는 동작
+    }
+  };
+  const onPointerMove = (e: PointerEvent) => {
+    if (drag && lastDesk) {
+      if (!drag.moved && down && Math.hypot(e.clientX - down.x, e.clientY - down.y) <= 4) return;
+      aim(e);
+      const p = ray.ray.intersectPlane(drag.plane, new THREE.Vector3());
+      if (!p) return;
+      p.add(drag.offset);
+      // 가운데가 책상 밖으로 나가지 않게 (정확한 맞춤은 저장할 때 스토어가 함)
+      p.x = THREE.MathUtils.clamp(p.x, -lastDesk.width / 2, lastDesk.width / 2);
+      p.z = THREE.MathUtils.clamp(p.z, -lastDesk.depth / 2, lastDesk.depth / 2);
+      drag.obj.position.x = p.x;
+      drag.obj.position.z = p.z;
+      drag.moved = true;
+      if (selection && selectedId === drag.id) selection.update();
+      el.style.cursor = "grabbing";
+      dirty = true;
+      return;
+    }
+    // 마우스를 올리면 옮길 수 있는 제품 위에서 손 모양
+    if (e.buttons === 0 && e.pointerType === "mouse") el.style.cursor = draggable(pickId(e)) ? "grab" : "";
+  };
+  const endDrag = () => {
+    if (!drag) return;
+    try {
+      el.releasePointerCapture(drag.pointerId);
+    } catch {
+      // 이미 놓인 경우
+    }
+    controls.enabled = true;
+    el.style.cursor = "";
+    const d = drag;
+    drag = null;
+    return d;
+  };
+  const onUp = (e: PointerEvent) => {
+    const d = endDrag();
+    if (d) {
+      down = null;
+      if (d.moved && lastDesk && opts.onMove) {
+        const x = d.obj.position.x + lastDesk.width / 2 - d.item.width / 2;
+        const y = d.obj.position.z + lastDesk.depth / 2 - d.item.height / 2;
+        const id = opts.onMove(d.id, x, y) || d.id;
+        opts.onSelect(id);
+      } else opts.onSelect(d.id);
+      return;
+    }
+    if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
+    down = null;
+    opts.onSelect(pickId(e));
+  };
+  const onCancel = () => {
+    const d = endDrag();
+    if (d) dirty = true; // 취소되면 다음 갱신 때 원래 자리로 그려짐
+  };
+  el.addEventListener("pointerdown", onDown, { capture: true });
+  el.addEventListener("pointermove", onPointerMove);
   el.addEventListener("pointerup", onUp);
+  el.addEventListener("pointercancel", onCancel);
 
   // ── 확대·축소: 트랙패드 핀치는 손가락 벌린 만큼, 스크롤·휠은 부드럽게. 포인터가 가리키는 곳을 향해 ──
   // (OrbitControls 기본 휠 확대는 핀치에 둔하고 항상 책상 가운데로만 다가감)
@@ -468,6 +561,7 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
         moodKey = lighting;
         applyMood(lighting, desk);
       }
+      currentItems = items;
       buildItems(desk, items, lighting);
       if (sel !== selectedId) {
         selectedId = sel;
@@ -481,8 +575,10 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
       disposed = true;
       cancelAnimationFrame(raf);
       ro.disconnect();
-      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointerdown", onDown, { capture: true });
+      el.removeEventListener("pointermove", onPointerMove);
       el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onCancel);
       el.removeEventListener("wheel", onWheel, { capture: true });
       el.removeEventListener("gesturestart", onGestureStart);
       el.removeEventListener("gesturechange", onGestureChange);
