@@ -1,7 +1,7 @@
 {
   "name": "deskterior-desktop",
   "productName": "DeskBoard",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "DeskBoard - 데스크보드 (데스크 셋업 시뮬레이터) macOS 앱",
   "main": "main.js",
   "private": true,
