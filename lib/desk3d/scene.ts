@@ -312,7 +312,9 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
       return base;
     };
     for (const s of supports) supportBase.set(s.id, restOn(s, supports.filter((x) => topOf(x) < topOf(s))));
-    const baseOf = (i: DeskItem) => supportBase.get(i.id) ?? restOn(i, supports);
+    // 모니터 암은 책상 가장자리에 클램프로 고정하므로 받침대·선반이 겹쳐 있어도 책상 위에 섬
+    const clampsToDesk = (i: DeskItem) => i.kind === "monitor-arm" || i.mount?.kind === "monitor-arm";
+    const baseOf = (i: DeskItem) => (clampsToDesk(i) ? 0 : supportBase.get(i.id) ?? restOn(i, supports));
     const monitors = items.filter((i) => i.kind === "monitor" || i.kind === "ultrawide");
     const stands = items.filter((i) => hookTop(i) !== undefined);
 
