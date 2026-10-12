@@ -36,11 +36,13 @@ interface Pal {
   metal: number;
 }
 const PAL: Record<ItemColor, Pal> = {
-  black: { body: "#1f1f23", trim: "#2c2c31", key: "#2a2a2f", metal: 0.15 },
+  black: { body: "#2f3034", trim: "#3e3f44", key: "#38393e", metal: 0.15 }, // 너무 새까마면 3D에서 형태가 안 보이고 눈이 피로해 짙은 차콜로
   white: { body: "#e4e4e7", trim: "#cfd0d4", key: "#f6f6f7", metal: 0.15 },
 };
 /** 맥북·거치대 같은 알루미늄 */
-const ALU: Record<ItemColor, string> = { black: "#3a3b3f", white: "#d5d7db" };
+const ALU: Record<ItemColor, string> = { black: "#47484d", white: "#d5d7db" };
+/** 모니터 암 팔 색: 검정은 스페이스 그레이 금속(관절만 검정), 흰색은 실버 */
+const ARM: Record<ItemColor, string> = { black: "#6a6d73", white: "#d5d7db" };
 
 const WHITE_DEFAULT: ProductKind[] = [
   "macbook-open", "macbook-closed", "laptop-stand", "laptop-vertical-stand", "usbc-hub", "light-bar",
@@ -182,7 +184,7 @@ function keyboardModel(ctx: ModelCtx, w: number, d: number, p: Pal, kind: Produc
   const g = new THREE.Group();
   const caseH = 1.8;
   g.add(box(w, caseH, d, ctx.mat(p.body, { rough: 0.45, metal: p.metal })));
-  g.add(box(kw + 0.3, 0.1, kd + 0.3, ctx.mat("#0c0c0e", { rough: 0.9 }), 0, caseH + 0.05, 0)); // 키 사이로 보이는 바닥판
+  g.add(box(kw + 0.3, 0.1, kd + 0.3, ctx.mat("#151618", { rough: 0.9 }), 0, caseH + 0.05, 0)); // 키 사이로 보이는 바닥판
 
   const keys: { x: number; z: number; w: number; mod: boolean }[] = [];
   let z = -kd / 2;
@@ -234,7 +236,7 @@ function streamDeck(ctx: ModelCtx, w: number, d: number, p: Pal): THREE.Object3D
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const color = DECK_COLORS[r * cols + c];
-      const key = box(pitch * 0.78, 0.3, pitch * 0.78, ctx.mat("#0d0d10", { rough: 0.3, emissive: color, emissiveIntensity: lit }), (c - (cols - 1) / 2) * pitch, bh + 0.15, (r - (rows - 1) / 2) * pitch);
+      const key = box(pitch * 0.78, 0.3, pitch * 0.78, ctx.mat("#17181b", { rough: 0.3, emissive: color, emissiveIntensity: lit }), (c - (cols - 1) / 2) * pitch, bh + 0.15, (r - (rows - 1) / 2) * pitch);
       key.castShadow = false;
       body.add(key);
     }
@@ -341,11 +343,43 @@ const STAND_TOP = 12;
 /** 데스크 선반 윗판 높이(cm) */
 const SHELF_TOP = 28;
 
+/** 모니터 화면(패널) 앞뒤 위치. 암에 달면 2D 그림처럼 클램프보다 앞으로 나옴 */
+const monitorPanelZ = (d: number, arm: boolean) => (arm ? -d / 2 + d * 0.62 : -d / 2 + 4.3);
+
+/**
+ * 모니터 암 (실제 가스 스프링 암 모양): 책상 클램프 → 짧은 기둥 → 어깨 관절 → 아래팔 → 팔꿈치 관절
+ * → 위팔(아래에 가스 스프링) → 틸트 관절 → VESA 판. clamp는 책상 위 클램프 자리(y=0)
+ */
+function armParts(ctx: ModelCtx, color: string, clamp: THREE.Vector3, elbow: THREE.Vector3, head: THREE.Vector3, plateZ: number): THREE.Object3D[] {
+  // 반사할 주변 풍경이 없어 금속감을 높이면 검게 보이므로 살짝만
+  const metal = ctx.mat(color, { rough: 0.4, metal: 0.25 });
+  const dark = ctx.mat("#1f2023", { rough: 0.5, metal: 0.2 });
+  const { x, z } = clamp;
+  const poleTop = 12;
+  const shoulder = v(x, poleTop + 1.6, z);
+  const along = (t: number, dy: number) => elbow.clone().lerp(head, t).add(v(0, dy, 0));
+  const tiltBall = shadow(new THREE.Mesh(new THREE.SphereGeometry(1.7, 16, 12), dark));
+  tiltBall.position.copy(head);
+  return [
+    box(7, 1.2, 9, metal, x, 0.6, z), // 클램프 받침판
+    box(5.4, 3.2, 6.2, dark, x, 2.8, z - 0.6), // 클램프 몸통
+    cyl(1.8, 1.8, poleTop - 4.4, metal, x, 4.4 + (poleTop - 4.4) / 2, z), // 기둥
+    cyl(2.5, 2.5, 3.2, dark, x, shoulder.y, z), // 어깨 관절
+    rod(shoulder, elbow, 1.6, metal), // 아래팔
+    cyl(2.3, 2.3, 3.6, dark, elbow.x, elbow.y, elbow.z), // 팔꿈치 관절
+    rod(elbow, head, 1.9, metal), // 위팔
+    rod(along(0.12, -1.9), along(0.78, -1.9), 0.85, dark), // 가스 스프링
+    tiltBall, // 틸트 관절
+    rod(head, v(head.x, head.y, plateZ + Math.sign(head.z - plateZ) * 0.3), 1.1, dark),
+    box(10, 10, 0.6, metal, head.x, head.y, plateZ), // VESA 판
+  ];
+}
+
 /** 모니터 (울트라와이드는 살짝 휘게) */
 function monitor(ctx: ModelCtx, w: number, d: number, p: Pal, ultra: boolean, arm?: Mount): THREE.Object3D[] {
   const ph = w * (ultra ? 0.43 : 0.575);
   const standH = arm ? 14 : 11;
-  const panelZ = -d / 2 + 4.3;
+  const panelZ = monitorPanelZ(d, !!arm);
   const curve = ultra ? w * 0.07 : 0;
   const bend = (g: THREE.BufferGeometry) => {
     if (!curve) return g;
@@ -367,11 +401,9 @@ function monitor(ctx: ModelCtx, w: number, d: number, p: Pal, ultra: boolean, ar
 
   const metal = ctx.mat(arm ? ALU[arm.color] : p.trim, { rough: 0.35, metal: 0.6 });
   if (arm) {
-    // 책상 뒤 끝 클램프 → 기둥 → 팔 → 모니터 뒤
-    const cz = -d / 2 + 1.2;
-    out.push(box(6, 5, 6, metal, 0, 2.5, cz));
-    out.push(rod(v(0, 5, cz), v(0, standH + ph * 0.5, cz), 1.5, metal));
-    out.push(rod(v(0, standH + ph * 0.5, cz), v(0, standH + ph * 0.5, panelZ - 2.7), 1.2, metal));
+    // 2D 그림과 같은 자리: 뒤쪽 왼편 클램프 → 팔꿈치 → 화면 뒤 가운데 VESA (화면은 클램프보다 앞으로 나옴)
+    const vy = standH + ph / 2;
+    out.push(...armParts(ctx, ARM[arm.color], v(-w * 0.3, 0, -d / 2 + 3.5), v(-w * 0.16, standH + ph * 0.28, -d / 2 + d * 0.3), v(0, vy, panelZ - 6), panelZ - 3));
   } else {
     // 받침대: 화면 아래 앞쪽으로 넓게, 목은 화면 뒤
     const bw = Math.min(26, w * 0.42);
@@ -388,7 +420,7 @@ function monitor(ctx: ModelCtx, w: number, d: number, p: Pal, ultra: boolean, ar
 function laptopOpen(ctx: ModelCtx, w: number, d: number, color: string, stand?: Mount): THREE.Object3D[] {
   const g = new THREE.Group();
   const shell = ctx.mat(color, { rough: 0.35, metal: 0.55 });
-  const deck = ctx.mat("#141416", { rough: 0.8 });
+  const deck = ctx.mat("#1e1f21", { rough: 0.8 });
   g.add(box(w, 1.3, d, shell, 0, 0.65, 0));
   g.add(box(w * 0.86, 0.1, d * 0.42, deck, 0, 1.33, -d * 0.18)); // 키보드 자리
   g.add(box(w * 0.36, 0.06, d * 0.3, ctx.mat(color, { rough: 0.2, metal: 0.4 }), 0, 1.33, d * 0.27)); // 트랙패드
@@ -433,7 +465,7 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
     const H = item.tall ?? 46;
     const k = glow(ctx.lighting);
     const out: THREE.Object3D[] = [box(w, H, d, ctx.mat(p.body, { rough: 0.45, metal: 0.3 }), 0, H / 2 + 1.2)];
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) out.push(box(3, 1.2, 3, ctx.mat("#111113"), sx * (w / 2 - 3), 0.6, sz * (d / 2 - 4))); // 받침 발
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) out.push(box(3, 1.2, 3, ctx.mat("#1b1c1f"), sx * (w / 2 - 3), 0.6, sz * (d / 2 - 4))); // 받침 발
     // 왼쪽 유리 옆판 + 안쪽 RGB 빛
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(d * 0.9, H * 0.86), ctx.mat("#1a1033", { rough: 0.1, metal: 0.3, emissive: "#7c3aed", emissiveIntensity: 0.25 + k * 0.9 }));
     glass.rotation.y = -Math.PI / 2;
@@ -452,7 +484,7 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
   "mini-pc": (ctx, w, d, _p, item) => {
     const H = item.tall ?? 5;
     const m = ctx.mat(ALU[colorOf(item)], { rough: 0.35, metal: 0.6 });
-    return [box(w, H - 0.4, d, m, 0, 0.4 + (H - 0.4) / 2), cyl(Math.min(w, d) * 0.42, Math.min(w, d) * 0.42, 0.4, ctx.mat("#111113"), 0, 0.2)];
+    return [box(w, H - 0.4, d, m, 0, 0.4 + (H - 0.4) / 2), cyl(Math.min(w, d) * 0.42, Math.min(w, d) * 0.42, 0.4, ctx.mat("#1b1c1f"), 0, 0.2)];
   },
   webcam: (ctx, w, d, p) => {
     // 모니터 위(또는 책상)에 걸치는 몸통 + 렌즈. 뒤로 클립
@@ -470,7 +502,7 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
       s.position.set(x, 0, z);
       return s;
     };
-    const stick = (x: number, z: number) => cyl(0.9, 1, 1.4, ctx.mat("#1a1a1d", { rough: 0.7 }), x, 3.2, z, 20);
+    const stick = (x: number, z: number) => cyl(0.9, 1, 1.4, ctx.mat("#232428", { rough: 0.7 }), x, 3.2, z, 20);
     return [
       dome(w * 0.36, d * 0.36, 3.6, 0, -d * 0.08), // 몸통
       dome(w * 0.16, d * 0.3, 3.2, -w * 0.3, d * 0.16), // 왼쪽 손잡이
@@ -485,7 +517,7 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
   "drawing-tablet": (ctx, w, d) => {
     const area = box(w * 0.74, 0.05, d * 0.8, ctx.mat("#2a2a30", { rough: 0.85 }), w * 0.08, 0.9, 0);
     area.castShadow = false;
-    return [box(w, 0.9, d, ctx.mat("#1c1c20", { rough: 0.6 })), area, rod(v(-w * 0.1, 1.4, d * 0.32), v(w * 0.35, 1.4, -d * 0.25), 0.5, ctx.mat("#52525b", { rough: 0.4, metal: 0.4 }))];
+    return [box(w, 0.9, d, ctx.mat("#25262a", { rough: 0.6 })), area, rod(v(-w * 0.1, 1.4, d * 0.32), v(w * 0.35, 1.4, -d * 0.25), 0.5, ctx.mat("#52525b", { rough: 0.4, metal: 0.4 }))];
   },
   "audio-interface": (ctx, w, d, p, item) => {
     const H = item.tall ?? 5;
@@ -550,7 +582,7 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
   "pen-cup": (ctx, w, d, p, item) => {
     const H = item.tall ?? 10;
     const r = Math.min(w, d) / 2;
-    const out: THREE.Object3D[] = [cyl(r, r * 0.92, H, ctx.mat(p.body, { rough: 0.5 })), cyl(r * 0.85, r * 0.85, 0.2, ctx.mat("#0d0d0f"), 0, H - 0.5)];
+    const out: THREE.Object3D[] = [cyl(r, r * 0.92, H, ctx.mat(p.body, { rough: 0.5 })), cyl(r * 0.85, r * 0.85, 0.2, ctx.mat("#17181b"), 0, H - 0.5)];
     ["#2563eb", "#111827", "#dc2626", "#16a34a", "#f59e0b"].forEach((c, i) => {
       const a = (i / 5) * Math.PI * 2;
       const top = v(Math.cos(a) * r * 0.9, H + 5 + (i % 2) * 1.5, Math.sin(a) * r * 0.9);
@@ -599,7 +631,7 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
   },
   earbuds: (ctx, w, d, _p, item) => {
     const H = item.tall ?? 2.5;
-    const m = ctx.mat(colorOf(item) === "white" ? "#f4f4f5" : "#1f1f23", { rough: 0.25 });
+    const m = ctx.mat(colorOf(item) === "white" ? "#f4f4f5" : "#2f3034", { rough: 0.25 });
     const shell = shadow(new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), m));
     shell.scale.set(w / 2, H / 2, d / 2);
     shell.position.y = H / 2;
@@ -673,7 +705,7 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
   },
   speaker: (ctx, w, d, p) => {
     const h = Math.min(32, Math.max(10, w * 1.55));
-    const dark = ctx.mat("#111113", { rough: 0.6 });
+    const dark = ctx.mat("#1b1c1f", { rough: 0.6 });
     const out: THREE.Object3D[] = [box(w, h, d, ctx.mat(p.body, { rough: 0.6 }))];
     for (const [r, y] of [[w * 0.32, h * 0.34], [w * 0.13, h * 0.76]] as const) {
       const drv = cyl(r, r, 0.6, dark, 0, y, d / 2, 32);
@@ -688,13 +720,13 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
     const m = ctx.mat(p.body, { rough: 0.5, metal: 0.25 });
     const top = new THREE.Group();
     top.add(box(w * 0.92, 1.2, d * 0.9, m, 0, 0, 0));
-    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) top.add(cyl(0.9, 0.9, 0.5, ctx.mat("#111113", { rough: 0.9 }), sx * w * 0.32, 0.85, sz * d * 0.32, 16));
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) top.add(cyl(0.9, 0.9, 0.5, ctx.mat("#1b1c1f", { rough: 0.9 }), sx * w * 0.32, 0.85, sz * d * 0.32, 16));
     top.position.y = H - 0.6;
     top.rotation.x = -0.06; // 소리가 귀 쪽으로 가도록 앞이 살짝 들림
     const colW = Math.min(w * 0.35, 5);
     return [box(w, 1.2, d, m), box(colW, H - 1.8, colW, m, 0, 1.2 + (H - 1.8) / 2, 0), top];
   },
-  soundbar: (ctx, w, d, p) => [box(w, 6.5, d, ctx.mat(p.body, { rough: 0.7 })), box(w * 0.96, 5, 0.2, ctx.mat("#141416", { rough: 0.95 }), 0, 3.25, d / 2)],
+  soundbar: (ctx, w, d, p) => [box(w, 6.5, d, ctx.mat(p.body, { rough: 0.7 })), box(w * 0.96, 5, 0.2, ctx.mat("#1e1f21", { rough: 0.95 }), 0, 3.25, d / 2)],
   "desk-mat": (ctx, w, d, p) => [box(w, 0.35, d, ctx.mat(p === PAL.black ? "#252528" : "#c8c8cd", { rough: 0.95 }))],
   "mouse-pad": (ctx, w, d, p) => [box(w, 0.35, d, ctx.mat(p === PAL.black ? "#252528" : "#c8c8cd", { rough: 0.95 }))],
   "wrist-rest": (ctx, w, d, p) => [box(w, 2, d, ctx.mat(p.body, { rough: 0.85 }))],
@@ -703,11 +735,8 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
     const m = ctx.mat(p.body, { rough: 0.5, metal: 0.3 });
     return [box(w, 1.6, d, m, 0, 9.2), box(2.4, 8.4, d, m, -w / 2 + 1.2, 4.2), box(2.4, 8.4, d, m, w / 2 - 1.2, 4.2)];
   },
-  "monitor-arm": (ctx, _w, d, p) => {
-    const m = ctx.mat(p.body, { rough: 0.35, metal: 0.6 });
-    const cz = -d / 2 + 2;
-    return [box(6, 5, 6, m, 0, 2.5, cz), rod(v(0, 5, cz), v(0, 40, cz), 1.5, m), rod(v(0, 40, cz), v(0, 38, d / 2 - 2), 1.2, m), box(8, 8, 1, m, 0, 38, d / 2 - 1.5)];
-  },
+  // 모니터 없이 놓은 암: 뒤쪽 클램프에서 앞으로 뻗어 VESA 판이 사용자 쪽을 봄
+  "monitor-arm": (ctx, _w, d, p) => armParts(ctx, ARM[p === PAL.black ? "black" : "white"], v(0, 0, -d / 2 + 4), v(-2.5, 20, -d / 2 + d * 0.45), v(0, 30, d / 2 - 5), d / 2 - 1.5),
   "laptop-stand": (ctx, w, d, p) => {
     const m = ctx.mat(ALU[p === PAL.black ? "black" : "white"], { rough: 0.35, metal: 0.6 });
     const t = Math.atan(9 / d);
@@ -729,11 +758,11 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
   "power-strip": (ctx, w, d, p) => {
     const out: THREE.Object3D[] = [box(w, 3.4, d, ctx.mat(p.body, { rough: 0.6 }))];
     const n = Math.max(2, Math.floor(w / 6));
-    for (let i = 0; i < n; i++) out.push(cyl(1.4, 1.4, 0.15, ctx.mat("#0b0b0c"), -w / 2 + (w / n) * (i + 0.5), 3.45, 0, 20));
+    for (let i = 0; i < n; i++) out.push(cyl(1.4, 1.4, 0.15, ctx.mat("#151618"), -w / 2 + (w / n) * (i + 0.5), 3.45, 0, 20));
     return out;
   },
   "phone-stand": (ctx, w, d, p) => {
-    const phone = box(7.2, 15, 0.8, ctx.mat("#111113", { rough: 0.3 }), 0, 0, 0);
+    const phone = box(7.2, 15, 0.8, ctx.mat("#1b1c1f", { rough: 0.3 }), 0, 0, 0);
     phone.position.set(0, 8.2, -d * 0.1);
     phone.rotation.x = -0.32;
     return [box(w, 0.8, d, ctx.mat(ALU[p === PAL.black ? "black" : "white"], { rough: 0.35, metal: 0.6 })), phone];
@@ -745,7 +774,7 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
     const lean = 0.35; // 뒤로 약 20°
     const bz = d * 0.15; // 태블릿 아래 모서리 위치
     const tab = new THREE.Group();
-    tab.add(box(tw, th, 0.65, ctx.mat("#1a1a1d", { rough: 0.3 }), 0, th / 2, 0));
+    tab.add(box(tw, th, 0.65, ctx.mat("#232428", { rough: 0.3 }), 0, th / 2, 0));
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(tw - 1.1, th - 1.1), ctx.screen);
     screen.position.set(0, th / 2, 0.33);
     tab.add(screen);
@@ -784,7 +813,7 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
     return [box(6, 5, 6, m, 0, 2.5, cz), rod(v(0, 5, cz), elbow, 0.8, m), rod(elbow, tip, 0.7, m), mic];
   },
   "desk-organizer": (ctx, w, d, p) => {
-    const out: THREE.Object3D[] = [box(w, 9, d, ctx.mat(p.body, { rough: 0.7 })), box(w - 1, 0.1, d - 1, ctx.mat("#0d0d0f"), 0, 9.02)];
+    const out: THREE.Object3D[] = [box(w, 9, d, ctx.mat(p.body, { rough: 0.7 })), box(w - 1, 0.1, d - 1, ctx.mat("#17181b"), 0, 9.02)];
     const colors = ["#2563eb", "#111827", "#dc2626", "#16a34a"];
     colors.forEach((c, i) => out.push(cyl(0.45, 0.45, 15, ctx.mat(c, { rough: 0.5 }), -w * 0.3 + i * 1.6, 9.5, -d * 0.15 + (i % 2) * 1.4, 12)));
     return out;
@@ -882,8 +911,15 @@ function palFromColor(css: string): [Pal, ItemColor] {
   const hsl = { h: 0, s: 0, l: 0 };
   base.getHSL(hsl);
   const light = hsl.l > 0.55;
+  // 아주 어두운 사진 색은 검정 팔레트 정도까지만 어둡게 (새까매서 형태가 안 보이지 않게)
+  const srgb = { h: 0, s: 0, l: 0 };
+  base.getHSL(srgb, THREE.SRGBColorSpace);
+  if (srgb.l < 0.19) {
+    base.setHSL(srgb.h, srgb.s, 0.19, THREE.SRGBColorSpace);
+    base.getHSL(hsl);
+  }
   const shade = (dl: number) => "#" + new THREE.Color().setHSL(hsl.h, hsl.s, Math.min(1, Math.max(0, hsl.l + dl))).getHexString();
-  return [{ body: "#" + base.getHexString(), trim: shade(light ? -0.12 : 0.1), key: shade(light ? 0.06 : 0.05), metal: 0.15 }, light ? "white" : "black"];
+  return [{ body: "#" + base.getHexString(THREE.SRGBColorSpace), trim: shade(light ? -0.12 : 0.1), key: shade(light ? 0.06 : 0.05), metal: 0.15 }, light ? "white" : "black"];
 }
 
 /**
@@ -1022,7 +1058,7 @@ function reliefMesh(tex: THREE.Texture, sw: number, sh: number, tall: number, ma
 }
 
 /** 사용자 제품 사진: 위에서 찍은 사진은 책상에 눕혀 두께를 주고, 정면 사진은 세워서(입간판처럼) 표시 */
-function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.Object3D[] {
+function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number, hangTop?: number): THREE.Object3D[] {
   const g = new THREE.Group();
   const base = box(w, 0.4, d, new THREE.MeshBasicMaterial({ visible: false }));
   base.castShadow = false;
@@ -1039,9 +1075,11 @@ function photoModel(ctx: ModelCtx, item: DeskItem, w: number, d: number): THREE.
       });
       holder.clear();
       holder.scale.set(1, 1, 1);
-      for (const o of modelParts(ctx, mk, item, w, d, p, tone)) holder.add(o);
+      // 거치대에 걸린 헤드폰은 걸린 모양으로 (높이 맞춤 없음)
+      const hanging = hangTop !== undefined && mk === "headphones";
+      for (const o of hanging ? hangingHeadphones(ctx, w, p, hangTop) : modelParts(ctx, mk, item, w, d, p, tone)) holder.add(o);
       // 높이를 입력했으면 모형을 그 높이에 맞춤 (스스로 높이를 쓰는 모형은 제외)
-      if (item.tall && !TALL_NATIVE.has(mk)) {
+      if (!hanging && item.tall && !TALL_NATIVE.has(mk)) {
         const h = new THREE.Box3().setFromObject(holder).max.y;
         if (h > 0.1) holder.scale.y = item.tall / h;
       }
@@ -1083,16 +1121,52 @@ function genericModel(ctx: ModelCtx, item: DeskItem, w: number, d: number, p: Pa
   return [box(w, item.tall ?? 8, d, [side, side, top, side, side, side])];
 }
 
+/** 헤드폰 거치대 걸이 맨 윗면 높이(cm). 거치대가 아니면 undefined (사진 제품은 입력한 높이에 맞춰 늘어남) */
+const STAND_HOOK_TOP = 26 + 4.5 + 0.8;
+export function hookTop(item: DeskItem): number | undefined {
+  const kind = item.kind === "photo" ? photoModelKind(item) : item.kind;
+  if (kind !== "headphone-stand") return undefined;
+  return item.kind === "photo" && item.tall ? item.tall : STAND_HOOK_TOP;
+}
+
+/** 헤드폰인지 (사진 제품은 3D 모양 기준) */
+export const isHeadphones = (item: DeskItem) => (item.kind === "photo" ? photoModelKind(item) : item.kind) === "headphones";
+
+/** 거치대에 걸린 헤드폰: 머리띠가 걸이 위에 얹히고 이어컵이 양옆으로 늘어짐 (원점 = 거치대 바닥 가운데) */
+function hangingHeadphones(ctx: ModelCtx, w: number, p: Pal, top: number): THREE.Object3D[] {
+  const m = ctx.mat(p.body, { rough: 0.55 });
+  const pad = ctx.mat(p === PAL.white ? "#e4e4e7" : "#252629", { rough: 0.9 });
+  const R = Math.max(3, w / 2 - 3.5);
+  const cy = top - (R - 1.9); // 머리띠 쿠션 안쪽이 걸이 위에 얹히게
+  const band = shadow(new THREE.Mesh(new THREE.TorusGeometry(R, 1.1, 12, 40, Math.PI), m));
+  band.position.set(0, cy, 0);
+  const cushion = shadow(new THREE.Mesh(new THREE.TorusGeometry(R - 1.2, 0.7, 10, 24, Math.PI * 0.6), pad)); // 머리띠 쿠션
+  cushion.position.set(0, cy, 0);
+  cushion.rotation.z = Math.PI * 0.2;
+  const out: THREE.Object3D[] = [band, cushion];
+  for (const sx of [-1, 1]) {
+    const yokeEnd = v(sx * R, cy - 2.6, 0);
+    out.push(rod(v(sx * R, cy, 0), yokeEnd, 0.7, m)); // 머리띠 → 이어컵 연결부
+    const cup = cyl(4, 4, 3.2, m, sx * (R + 0.4), cy - 2.6 - 3.6, 0); // 이어컵 (안쪽을 보게 눕힘)
+    cup.rotation.z = Math.PI / 2;
+    const ear = cyl(3.6, 3.6, 1.2, pad, sx * (R - 1.6), cy - 2.6 - 3.6, 0); // 귀 쿠션
+    ear.rotation.z = Math.PI / 2;
+    out.push(cup, ear);
+  }
+  return out;
+}
+
 /** 제품 하나의 3D 모형 (원점 = 제품 바닥 가운데) */
-export function buildItem(ctx: ModelCtx, item: DeskItem): THREE.Group {
+export function buildItem(ctx: ModelCtx, item: DeskItem, opts: { hangTop?: number } = {}): THREE.Group {
   const g = new THREE.Group();
   const w = item.width;
   const d = item.height;
   const p = PAL[colorOf(item)];
   const kind = item.kind ?? "generic";
   let parts: THREE.Object3D[];
-  if (kind === "monitor" || kind === "ultrawide") parts = monitor(ctx, w, d, p, kind === "ultrawide", item.mount?.kind === "monitor-arm" ? item.mount : undefined);
-  else if (kind === "photo") parts = photoModel(ctx, item, w, d);
+  if (opts.hangTop !== undefined && kind === "headphones") parts = hangingHeadphones(ctx, w, p, opts.hangTop);
+  else if (kind === "monitor" || kind === "ultrawide") parts = monitor(ctx, w, d, p, kind === "ultrawide", item.mount?.kind === "monitor-arm" ? item.mount : undefined);
+  else if (kind === "photo") parts = photoModel(ctx, item, w, d, opts.hangTop);
   else if (BUILD[kind]) parts = BUILD[kind]!(ctx, w, d, p, item);
   else parts = genericModel(ctx, item, w, d, p);
   for (const o of parts) g.add(o);
@@ -1113,6 +1187,6 @@ export function supportTop(item: DeskItem): number | undefined {
 export function monitorTop(item: DeskItem) {
   const ultra = item.kind === "ultrawide";
   const ph = item.width * (ultra ? 0.43 : 0.575);
-  const standH = item.mount?.kind === "monitor-arm" ? 14 : 11;
-  return { y: standH + ph, z: -item.height / 2 + 4.3 };
+  const arm = item.mount?.kind === "monitor-arm";
+  return { y: (arm ? 14 : 11) + ph, z: monitorPanelZ(item.height, arm) };
 }

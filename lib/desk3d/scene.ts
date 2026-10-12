@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { imageProxyUrl } from "@/lib/productLink";
 import type { DeskItem, DeskMaterial, DeskSize, Lighting } from "@/store/useDeskStore";
-import { buildItem, monitorTop, supportTop, type MatOpts, type ModelCtx } from "./models";
+import { buildItem, hookTop, isHeadphones, monitorTop, supportTop, type MatOpts, type ModelCtx } from "./models";
 import { artTexture, calendarTexture, clockTexture, deskTexture, floorTexture, labelTexture, screenOffTexture } from "./textures";
 
 /**
@@ -14,10 +14,10 @@ import { artTexture, calendarTexture, clockTexture, deskTexture, floorTexture, l
 const DESK_THICK = 3;
 const DESK_H = 73; // 바닥에서 상판 윗면까지
 
-const MOOD: Record<Lighting, { bg: string; wall: string; floor: number; hemi: [string, string, number]; sun?: { color: string; power: number; pos: [number, number, number] }; exposure: number; screen: number }> = {
-  day: { bg: "#202024", wall: "#cfcac2", floor: 1, hemi: ["#ffffff", "#5b544c", 1.25], sun: { color: "#ffffff", power: 2.4, pos: [-0.5, 1.6, 1.1] }, exposure: 1, screen: 1 },
-  evening: { bg: "#160f0c", wall: "#b59c88", floor: 0.8, hemi: ["#ffd9b8", "#3a281c", 0.8], sun: { color: "#ffb27a", power: 1.7, pos: [1.1, 0.8, 0.9] }, exposure: 1.05, screen: 0.8 },
-  night: { bg: "#06070b", wall: "#6a6f80", floor: 0.55, hemi: ["#5a6a9c", "#0a0a10", 0.26], exposure: 1.2, screen: 0.45 },
+const MOOD: Record<Lighting, { bg: string; wall: string; floor: number; hemi: [string, string, number]; sun?: { color: string; power: number; pos: [number, number, number] }; exposure: number; screen: number; fill: number }> = {
+  day: { bg: "#202024", wall: "#cfcac2", floor: 1, hemi: ["#ffffff", "#5b544c", 1.25], sun: { color: "#ffffff", power: 2.4, pos: [-0.5, 1.6, 1.1] }, exposure: 1, screen: 1, fill: 0.5 },
+  evening: { bg: "#160f0c", wall: "#b59c88", floor: 0.8, hemi: ["#ffd9b8", "#3a281c", 0.8], sun: { color: "#ffb27a", power: 1.7, pos: [1.1, 0.8, 0.9] }, exposure: 1.05, screen: 0.8, fill: 0.3 },
+  night: { bg: "#06070b", wall: "#6a6f80", floor: 0.55, hemi: ["#5a6a9c", "#0a0a10", 0.26], exposure: 1.2, screen: 0.45, fill: 0.07 },
 };
 
 export interface Desk3DState {
@@ -186,7 +186,7 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
     deskTop.castShadow = deskTop.receiveShadow = true;
     deskParts.add(deskTop);
     // 다리와 프레임 (검은 금속)
-    const legMat = mat("#1b1b1e", { rough: 0.4, metal: 0.7 });
+    const legMat = mat("#232427", { rough: 0.4, metal: 0.5 });
     const legH = DESK_H - DESK_THICK;
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
@@ -211,7 +211,10 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.6;
   sun.shadow.radius = 4;
-  scene.add(hemi, sun, sun.target);
+  // 앞쪽(보는 쪽)에서 은은하게 비추는 보조광: 세워진 면(헤드폰·모니터 등)이 새까맣게 묻히지 않게. 그림자 없음
+  const fill = new THREE.DirectionalLight();
+  fill.position.set(0, 80, 220);
+  scene.add(hemi, sun, sun.target, fill);
 
   function applyMood(lighting: Lighting, desk: DeskSize) {
     const m = MOOD[lighting];
@@ -222,6 +225,8 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
     hemi.color.set(m.hemi[0]);
     hemi.groundColor.set(m.hemi[1]);
     hemi.intensity = m.hemi[2];
+    fill.color.set(m.hemi[0]);
+    fill.intensity = m.fill;
     wallMat.color.set(m.wall);
     floorMat.color.setScalar(m.floor);
     const span = Math.max(desk.width, desk.depth) / 2 + 60;
@@ -309,12 +314,20 @@ export function createDesk3D(container: HTMLElement, opts: { onSelect: (id: stri
     for (const s of supports) supportBase.set(s.id, restOn(s, supports.filter((x) => topOf(x) < topOf(s))));
     const baseOf = (i: DeskItem) => supportBase.get(i.id) ?? restOn(i, supports);
     const monitors = items.filter((i) => i.kind === "monitor" || i.kind === "ultrawide");
+    const stands = items.filter((i) => hookTop(i) !== undefined);
 
     for (const item of items) {
-      const obj = buildItem(ctx, item);
       const c = center(item, desk);
+      // 헤드폰을 거치대 위에 놓으면 걸이에 걸린 모양으로, 거치대 자리·방향에 맞춰 둠
+      const stand = isHeadphones(item) ? stands.find((s) => contains(s, desk, c.x, c.z)) : undefined;
+      const obj = buildItem(ctx, item, { hangTop: stand && hookTop(stand) });
       obj.position.set(c.x, baseOf(item), c.z);
       obj.rotation.y = (-item.rotation * Math.PI) / 180;
+      if (stand) {
+        const sc = center(stand, desk);
+        obj.position.set(sc.x, baseOf(stand), sc.z);
+        obj.rotation.y = (-stand.rotation * Math.PI) / 180;
+      }
 
       // 라이트바: 겹친 모니터 위에 올림
       if (item.kind === "light-bar" || item.kind === "webcam") {
