@@ -7,10 +7,10 @@ import { Toast } from "@/components/Toast";
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#09090b" }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#141417" }}>
       <SafeAreaProvider>
         <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#09090b" } }} />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#141417" } }} />
         <Toast />
       </SafeAreaProvider>
     </GestureHandlerRootView>

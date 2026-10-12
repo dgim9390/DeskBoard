@@ -72,7 +72,7 @@ function createWindow() {
     minWidth: 420,
     minHeight: 700,
     title: "DeskBoard",
-    backgroundColor: "#09090b",
+    backgroundColor: "#141417",
     show: false,
     webPreferences: {
       contextIsolation: true,

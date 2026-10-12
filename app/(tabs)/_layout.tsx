@@ -15,13 +15,13 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: "#09090b" },
+        headerStyle: { backgroundColor: "#141417" },
         headerTintColor: "#fafafa",
         headerShadowVisible: false,
         headerTitleAlign: "center",
         headerLeft: () => <AuthButton />, // 왼쪽 위: 로그인/회원가입 · 로그아웃
-        sceneStyle: { backgroundColor: "#09090b" },
-        tabBarStyle: { backgroundColor: "#09090b", borderTopColor: "#27272a" },
+        sceneStyle: { backgroundColor: "#141417" },
+        tabBarStyle: { backgroundColor: "#141417", borderTopColor: "#2a2a2f" },
         tabBarActiveTintColor: "#818cf8",
         tabBarInactiveTintColor: "#71717a",
       }}

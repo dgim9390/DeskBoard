@@ -37,7 +37,7 @@ interface ModeSpec {
 }
 
 export const LIGHTING: Record<Lighting, ModeSpec & { label: string; icon: "sunny-outline" | "partly-sunny-outline" | "moon-outline" }> = {
-  day: { label: "낮", icon: "sunny-outline", dark: "#000", darkness: 0, glow: 0, room: "#18181b" },
+  day: { label: "낮", icon: "sunny-outline", dark: "#000", darkness: 0, glow: 0, room: "#1d1d21" },
   evening: { label: "저녁", icon: "partly-sunny-outline", dark: "#1a0f14", darkness: 0.42, tint: { color: "#ff8a3d", opacity: 0.08 }, glow: 0.55, room: "#16110f" },
   night: { label: "밤", icon: "moon-outline", dark: "#04050b", darkness: 0.8, glow: 1, room: "#07080c" },
 };
