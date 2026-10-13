@@ -6,7 +6,7 @@
 
 데스크보드 · 실제 치수 기반의 데스크 셋업 시뮬레이터
 
-<a href="https://github.com/dgim9390/DeskBoard/releases/latest"><img src="https://img.shields.io/badge/Download_for_macOS-6366F1?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" height="40" /></a>&nbsp;&nbsp;<a href="https://deskboard-one.vercel.app"><img src="https://img.shields.io/badge/Open_in_Browser-27272A?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Open in Browser" height="40" /></a>
+<a href="https://deskboard-one.vercel.app"><img src="https://img.shields.io/badge/Open_in_Browser-6366F1?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Open in Browser" height="40" /></a>&nbsp;&nbsp;<a href="https://github.com/dgim9390/DeskBoard/releases/latest"><img src="https://img.shields.io/badge/Download_for_macOS-27272A?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" height="40" /></a>
 
 [![Release](https://img.shields.io/github/v/release/dgim9390/DeskBoard?style=flat-square&color=6366F1&label=release)](https://github.com/dgim9390/DeskBoard/releases/latest) ![Platform](https://img.shields.io/badge/platform-macOS_(Apple_Silicon)_|_Web-27272A?style=flat-square)
 
@@ -42,19 +42,19 @@ macOS 앱과 웹에서 똑같이 동작하며, 로그인하면 저장한 셋업�
 - **템플릿과 추천**\
   완성된 셋업 템플릿으로 바로 시작하거나, 현재 책상 구성에 맞춘 추천 제품을 확인합니다.
 
-## 설치
+## 시작하기
 
-### macOS
+### 웹 (권장)
 
-Apple Silicon(M1 이후) 맥에서 사용할 수 있습니다.
+설치 없이 [deskboard-one.vercel.app](https://deskboard-one.vercel.app)에서 바로 사용할 수 있습니다. 처음이라면 웹으로 시작하는 것을 권장합니다.
+
+### macOS 앱
+
+웹과 기능은 같고, 독립된 앱 창과 메뉴 막대에서 쓰고 싶을 때 설치합니다. Apple Silicon(M1 이후) 맥에서 사용할 수 있습니다.
 
 1. [최신 릴리스](https://github.com/dgim9390/DeskBoard/releases/latest) 페이지의 **Assets**에서 `DeskBoard-x.x.x-arm64.dmg`를 내려받습니다.
 2. 내려받은 `.dmg` 파일을 열고, **DeskBoard**를 **Applications** 폴더로 드래그합니다.
-3. 응용 프로그램 폴더에서 **DeskBoard**를 실행합니다.
-
-### 웹
-
-설치 없이 [deskboard-one.vercel.app](https://deskboard-one.vercel.app)에서 바로 사용할 수 있습니다.
+3. 응용 프로그램 폴더에서 **DeskBoard**를 실행합니다. 처음 실행할 때 보안 경고가 나오면 아래 [앱이 열리지 않는 경우](#앱이-열리지-않는-경우)를 따라 주세요.
 
 ## 앱이 열리지 않는 경우
 
