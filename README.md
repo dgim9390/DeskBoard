@@ -10,7 +10,7 @@
 
 [![Release](https://img.shields.io/github/v/release/dgim9390/DeskBoard?style=flat-square&color=6366F1&label=release)](https://github.com/dgim9390/DeskBoard/releases/latest) ![Platform](https://img.shields.io/badge/platform-macOS_(Apple_Silicon)_|_Web-27272A?style=flat-square)
 
-<img src="docs/screenshot.png" width="760" alt="DeskBoard 시뮬레이터 (2D)" />
+<img src="docs/demo.gif" width="760" alt="2D에서 키보드를 끌어 놓고 3D로 전환해 돌려 보는 DeskBoard 시연" />
 
 </div>
 
@@ -19,6 +19,9 @@
 DeskBoard(데스크보드)는 책상과 장비를 실제 크기(cm)로 배치해, 사기 전에 데스크 셋업을 미리 꾸며 보는 앱입니다.
 위에서 내려다보는 2D 화면에서 배치하고, 3D 화면으로 돌려 보며 실제 모습을 확인할 수 있습니다.
 macOS 앱과 웹에서 똑같이 동작하며, 로그인하면 저장한 셋업이 기기 사이에 동기화됩니다.
+
+모니터 암을 달면 책상 뒤 공간이 남을지, 새로 살 키보드가 데스크 매트에 맞을지처럼 사기 전에 궁금한 것들은 사진만 봐서는 알기 어렵습니다.
+DeskBoard는 이런 고민을 실제 치수로 미리 확인해 보기 위해 만들었습니다.
 
 <img src="docs/screenshot-3d.png" width="760" alt="DeskBoard 3D 보기" />
 
@@ -94,6 +97,37 @@ xattr -dr com.apple.quarantine /Applications/DeskBoard.app
 
 ## 개발
 
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Expo](https://img.shields.io/badge/Expo-000020?style=flat-square&logo=expo&logoColor=white)
+![React Native](https://img.shields.io/badge/React_Native-20232A?style=flat-square&logo=react&logoColor=61DAFB)
+![three.js](https://img.shields.io/badge/three.js-000000?style=flat-square&logo=threedotjs&logoColor=white)
+![Zustand](https://img.shields.io/badge/Zustand-443E38?style=flat-square)
+![NativeWind](https://img.shields.io/badge/NativeWind-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white)
+![Electron](https://img.shields.io/badge/Electron-47848F?style=flat-square&logo=electron&logoColor=white)
+
+### 구조
+
+```mermaid
+flowchart LR
+  UI["화면<br/>Expo Router · React Native Web"] <--> Store["상태<br/>Zustand"]
+  Store --> Edit2D["2D 편집<br/>SVG · Gesture Handler"]
+  Store --> View3D["3D 보기<br/>three.js"]
+  Store <--> Local["기기 저장<br/>localStorage · IndexedDB"]
+  Store <--> Cloud["계정 동기화<br/>Supabase"]
+  UI -- "제품 링크" --> API["Vercel 서버리스 함수<br/>/api/product-preview · /api/image-proxy"]
+  Mac["macOS 앱<br/>Electron"] -. "웹 화면을 감싸고<br/>새 화면을 바로 적용" .-> UI
+```
+
+- **상태 관리**: 책상, 장비, 저장한 셋업을 하나의 Zustand 스토어가 관리합니다. 2D 편집 화면과 3D 보기가 같은 상태를 바라보므로 어느 쪽에서 옮겨도 바로 맞춰지고, 모든 편집은 실행 취소 기록에 남습니다.
+- **제품 링크 분석**: Vercel 서버리스 함수가 제품 페이지를 받아 JSON-LD(Product)와 메타 태그(og 등)에서 이름, 사진, 가격을 읽고, 본문의 치수 표기를 찾아 가로 · 깊이 · 높이로 맞춥니다. 크롤링 라이브러리 없이 자체 해석기(`lib/productParse.js`)를 쓰며, 내부망 주소로의 요청은 막습니다(SSRF 방지).
+- **배경 제거**: 서버 없이 브라우저의 canvas에서 처리합니다. 사진 테두리에서 시작해 배경색을 따라 지우고(flood fill), 옅은 그림자와 제품 사이에 갇힌 배경까지 정리합니다. 사진은 IndexedDB에 한 번만 보관합니다.
+- **3D 보기**: 제품 종류별 모형을 코드로 만들어 실제 크기에 맞추고, 화면이 바뀔 때만 다시 그립니다. 3D 코드는 처음 3D를 켤 때만 불러옵니다.
+- **macOS 앱**: Electron이 같은 웹 화면을 감쌉니다. 새 화면이 배포되면 앱을 다시 설치하지 않아도 알림에서 바로 적용할 수 있습니다.
+
+### 실행
+
 ```bash
 npm install
 npx expo start                 # w: 웹, i: iOS 시뮬레이터
@@ -109,6 +143,4 @@ npm run dist                   # desktop/release/*.dmg 생성
 
 - `.env.example`을 복사해 `.env`를 만들고 Supabase 프로젝트 URL과 공개 키를 입력합니다.
 - 데이터베이스 스키마는 `supabase/schema.sql`에 있습니다.
-- 구성: `app/` 화면 · `components/` UI · `store/` 상태와 저장 · `lib/desk3d/` 3D 장면과 모형 · `api/` 제품 페이지 분석 · `desktop/` macOS 앱
-
-**기술 스택**: Expo (React Native, Expo Router) · NativeWind · Zustand · three.js · Supabase · Vercel · Electron
+- 폴더: `app/` 화면 · `components/` UI · `store/` 상태와 저장 · `lib/desk3d/` 3D 장면과 모형 · `api/` 제품 페이지 분석 · `desktop/` macOS 앱
