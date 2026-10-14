@@ -109,17 +109,6 @@ xattr -dr com.apple.quarantine /Applications/DeskBoard.app
 
 ### 구조
 
-```mermaid
-flowchart LR
-  UI["화면<br/>Expo Router · React Native Web"] <--> Store["상태<br/>Zustand"]
-  Store --> Edit2D["2D 편집<br/>SVG · Gesture Handler"]
-  Store --> View3D["3D 보기<br/>three.js"]
-  Store <--> Local["기기 저장<br/>localStorage · IndexedDB"]
-  Store <--> Cloud["계정 동기화<br/>Supabase"]
-  UI -- "제품 링크" --> API["Vercel 서버리스 함수<br/>/api/product-preview · /api/image-proxy"]
-  Mac["macOS 앱<br/>Electron"] -. "웹 화면을 감싸고<br/>새 화면을 바로 적용" .-> UI
-```
-
 - **상태 관리**: 책상, 장비, 저장한 셋업을 하나의 Zustand 스토어가 관리합니다. 2D 편집 화면과 3D 보기가 같은 상태를 바라보므로 어느 쪽에서 옮겨도 바로 맞춰지고, 모든 편집은 실행 취소 기록에 남습니다.
 - **제품 링크 분석**: Vercel 서버리스 함수가 제품 페이지를 받아 JSON-LD(Product)와 메타 태그(og 등)에서 이름, 사진, 가격을 읽고, 본문의 치수 표기를 찾아 가로 · 깊이 · 높이로 맞춥니다. 크롤링 라이브러리 없이 자체 해석기(`lib/productParse.js`)를 쓰며, 내부망 주소로의 요청은 막습니다(SSRF 방지).
 - **배경 제거**: 서버 없이 브라우저의 canvas에서 처리합니다. 사진 테두리에서 시작해 배경색을 따라 지우고(flood fill), 옅은 그림자와 제품 사이에 갇힌 배경까지 정리합니다. 사진은 IndexedDB에 한 번만 보관합니다.
