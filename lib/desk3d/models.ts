@@ -416,6 +416,14 @@ function monitor(ctx: ModelCtx, w: number, d: number, p: Pal, ultra: boolean, ar
   return out;
 }
 
+/** 수직 거치대에 세운 노트북 (덮은 채로): 위에서 본 가로(w)는 두께, 깊이(d)는 노트북 가로 */
+function verticalLaptop(ctx: ModelCtx, w: number, d: number, m: Mount, shell: THREE.Material): THREE.Object3D[] {
+  const H = Math.min(m.hostWidth, m.hostHeight);
+  const sd = Math.min(d * 0.6, 18);
+  const sm = ctx.mat(ALU[m.color], { rough: 0.35, metal: 0.6 });
+  return [box(Math.max(w, 5), 2, sd, sm), box(1, 6, sd, sm, -1.5, 3), box(1, 6, sd, sm, 1.5, 3), box(1.5, H, d * 0.97, shell, 0, 1.5 + H / 2)];
+}
+
 /** 노트북 (펼침). 받침대에 올리면 뒤쪽을 들어 올림 */
 function laptopOpen(ctx: ModelCtx, w: number, d: number, color: string, stand?: Mount): THREE.Object3D[] {
   const g = new THREE.Group();
@@ -668,18 +676,14 @@ const BUILD: Partial<Record<ProductKind, Build>> = {
     return [dome];
   },
   trackpad: (ctx, w, d, _p, item) => [box(w, 0.7, d, ctx.mat(ALU[colorOf(item)], { rough: 0.3, metal: 0.5 }))],
-  laptop: (ctx, w, d, p, item) => laptopOpen(ctx, w, d, p.body, item.mount?.kind === "laptop-stand" ? item.mount : undefined),
-  "macbook-open": (ctx, w, d, _p, item) => laptopOpen(ctx, w, d, ALU[colorOf(item)], item.mount?.kind === "laptop-stand" ? item.mount : undefined),
+  laptop: (ctx, w, d, p, item) =>
+    item.mount?.kind === "laptop-vertical-stand" ? verticalLaptop(ctx, w, d, item.mount, ctx.mat(p.body, { rough: 0.4, metal: 0.3 })) : laptopOpen(ctx, w, d, p.body, item.mount?.kind === "laptop-stand" ? item.mount : undefined),
+  "macbook-open": (ctx, w, d, _p, item) =>
+    item.mount?.kind === "laptop-vertical-stand" ? verticalLaptop(ctx, w, d, item.mount, ctx.mat(ALU[colorOf(item)], { rough: 0.35, metal: 0.55 })) : laptopOpen(ctx, w, d, ALU[colorOf(item)], item.mount?.kind === "laptop-stand" ? item.mount : undefined),
   "macbook-closed": (ctx, w, d, _p, item) => {
     const shell = ctx.mat(ALU[colorOf(item)], { rough: 0.35, metal: 0.55 });
     const m = item.mount;
-    if (m?.kind === "laptop-vertical-stand") {
-      // 수직 거치대에 세운 노트북: 위에서 본 가로(w)는 두께, 깊이(d)는 노트북 가로
-      const H = Math.min(m.hostWidth, m.hostHeight);
-      const sd = Math.min(d * 0.6, 18);
-      const sm = ctx.mat(ALU[m.color], { rough: 0.35, metal: 0.6 });
-      return [box(Math.max(w, 5), 2, sd, sm), box(1, 6, sd, sm, -1.5, 3), box(1, 6, sd, sm, 1.5, 3), box(1.5, H, d * 0.97, shell, 0, 1.5 + H / 2)];
-    }
+    if (m?.kind === "laptop-vertical-stand") return verticalLaptop(ctx, w, d, m, shell);
     if (m?.kind === "laptop-stand") return laptopOpen(ctx, w, d, ALU[colorOf(item)], m).slice(0, 1);
     return [box(w, 1.5, d, shell)];
   },
