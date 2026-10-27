@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { imageProxyUrl } from "@/lib/productLink";
 import type { DeskItem, DeskMaterial, DeskSize, Lighting } from "@/store/useDeskStore";
 import { buildItem, hookTop, isHeadphones, monitorTop, supportTop, type MatOpts, type ModelCtx } from "./models";
@@ -14,10 +15,10 @@ import { artTexture, calendarTexture, clockTexture, deskTexture, floorTexture, l
 const DESK_THICK = 3;
 const DESK_H = 73; // 바닥에서 상판 윗면까지
 
-const MOOD: Record<Lighting, { bg: string; wall: string; floor: number; hemi: [string, string, number]; sun?: { color: string; power: number; pos: [number, number, number] }; exposure: number; screen: number; fill: number }> = {
-  day: { bg: "#202024", wall: "#cfcac2", floor: 1, hemi: ["#ffffff", "#5b544c", 1.25], sun: { color: "#ffffff", power: 2.4, pos: [-0.5, 1.6, 1.1] }, exposure: 1, screen: 1, fill: 0.5 },
-  evening: { bg: "#160f0c", wall: "#b59c88", floor: 0.8, hemi: ["#ffd9b8", "#3a281c", 0.8], sun: { color: "#ffb27a", power: 1.7, pos: [1.1, 0.8, 0.9] }, exposure: 1.05, screen: 0.8, fill: 0.3 },
-  night: { bg: "#06070b", wall: "#6a6f80", floor: 0.55, hemi: ["#5a6a9c", "#0a0a10", 0.26], exposure: 1.2, screen: 0.45, fill: 0.07 },
+const MOOD: Record<Lighting, { bg: string; wall: string; floor: number; hemi: [string, string, number]; sun?: { color: string; power: number; pos: [number, number, number] }; exposure: number; screen: number; fill: number; env: number }> = {
+  day: { bg: "#202024", wall: "#cfcac2", floor: 1, hemi: ["#ffffff", "#5b544c", 1.0], sun: { color: "#ffffff", power: 2.4, pos: [-0.5, 1.6, 1.1] }, exposure: 1, screen: 1, fill: 0.5, env: 0.35 },
+  evening: { bg: "#160f0c", wall: "#b59c88", floor: 0.8, hemi: ["#ffd9b8", "#3a281c", 0.65], sun: { color: "#ffb27a", power: 1.7, pos: [1.1, 0.8, 0.9] }, exposure: 1.05, screen: 0.8, fill: 0.3, env: 0.22 },
+  night: { bg: "#06070b", wall: "#6a6f80", floor: 0.55, hemi: ["#5a6a9c", "#0a0a10", 0.26], exposure: 1.2, screen: 0.45, fill: 0.07, env: 0.08 },
 };
 
 export interface Desk3DState {
@@ -46,6 +47,9 @@ function contains(i: DeskItem, desk: DeskSize, px: number, pz: number) {
   return Math.abs(lx) <= i.width / 2 && Math.abs(lz) <= i.height / 2;
 }
 
+/** 접지 그림자를 넣지 않는 납작한 깔개 */
+const FLAT_UNDERLAY = new Set(["desk-mat", "mouse-pad", "wrist-rest", "notebook-pad"]);
+
 /** 넓고 납작해서 끌기보다 시점을 돌리려는 경우가 많은 제품: 선택했을 때만 끌어서 옮김 */
 const DRAG_WHEN_SELECTED = new Set(["desk-mat", "mouse-pad"]);
 
@@ -70,6 +74,10 @@ export function createDesk3D(
   container.appendChild(el);
 
   const scene = new THREE.Scene();
+  // 주변 반사: 금속·유리가 비칠 실내 풍경. 세기는 조명별로 낮게(번쩍이지 않게) applyMood에서 정함
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTex;
   const camera = new THREE.PerspectiveCamera(38, 1, 1, 6000);
   const controls = new OrbitControls(camera, el);
   controls.enableDamping = true;
@@ -141,6 +149,25 @@ export function createDesk3D(
   let selection: THREE.BoxHelper | null = null;
 
   const floorTex = floorTexture();
+  // 접지 그림자: 가운데가 진하고 가장자리로 사라지는 원 하나를 모든 제품이 같이 씀
+  const contactTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const g = c.getContext("2d")!;
+    const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, "rgba(0,0,0,0.55)");
+    grad.addColorStop(0.55, "rgba(0,0,0,0.22)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 128, 128);
+    const t = new THREE.CanvasTexture(c);
+    t.userData.shared = true;
+    return t;
+  })();
+  const contactGeo = new THREE.PlaneGeometry(1, 1);
+  contactGeo.userData.shared = true;
+  const contactMat = new THREE.MeshBasicMaterial({ map: contactTex, transparent: true, depthWrite: false, opacity: 0.6 });
+  contactMat.userData.cached = true;
   const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.85 });
   const wallMat = new THREE.MeshStandardMaterial({ color: "#cfcac2", roughness: 0.95 });
   const trimMat = new THREE.MeshStandardMaterial({ color: "#e9e6e0", roughness: 0.7 });
@@ -233,6 +260,7 @@ export function createDesk3D(
     scene.background = new THREE.Color(m.bg);
     scene.fog = new THREE.Fog(m.bg, 450, 900);
     renderer.toneMappingExposure = m.exposure;
+    scene.environmentIntensity = m.env;
     screenMat.emissiveIntensity = m.screen; // 어두운 방일수록 화면에 비치는 빛도 약하게
     hemi.color.set(m.hemi[0]);
     hemi.groundColor.set(m.hemi[1]);
@@ -364,6 +392,19 @@ export function createDesk3D(
       obj.traverse((o) => (o.userData.itemId = item.id));
       itemsGroup.add(obj);
       itemObjects.set(item.id, obj);
+      // 바닥에 닿은 제품 밑의 부드러운 접지 그림자 (떠 보이지 않게). 띄웠거나 걸었거나 납작한 깔개는 제외
+      if (!item.lift && !stand && !FLAT_UNDERLAY.has(item.kind ?? "") && item.kind !== "light-bar" && item.kind !== "webcam") {
+        obj.updateMatrixWorld(true); // 방금 만든 제품이라 위치가 아직 반영 안 됨
+        const b = new THREE.Box3().setFromObject(obj);
+        if (b.max.y - obj.position.y > 1) {
+          const blob = new THREE.Mesh(contactGeo, contactMat);
+          blob.rotation.x = -Math.PI / 2;
+          blob.scale.set((b.max.x - b.min.x) * 1.2, (b.max.z - b.min.z) * 1.2, 1);
+          blob.position.set((b.min.x + b.max.x) / 2, obj.position.y + 0.06, (b.min.z + b.max.z) / 2);
+          blob.renderOrder = -1;
+          itemsGroup.add(blob);
+        }
+      }
     }
     markSelection();
   }
@@ -620,6 +661,11 @@ export function createDesk3D(
       for (const m of [...matCache.values(), ...labelCache.values(), screenMat, clockMat, artMat, calendarMat]) disposeMaterial(m, true);
       for (const p of photoCache.values()) void p.then((t) => t?.dispose());
       floorTex.dispose();
+      envTex.dispose();
+      pmrem.dispose();
+      contactTex.dispose();
+      contactGeo.dispose();
+      contactMat.dispose();
       renderer.dispose();
       renderer.forceContextLoss(); // 2D↔3D를 여러 번 바꿔도 WebGL 컨텍스트가 쌓이지 않게
       el.remove();
