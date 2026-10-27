@@ -55,6 +55,8 @@ export function createDesk3D(
     onSelect: (id: string | null) => void;
     /** 3D에서 끌어 옮긴 제품의 새 위치(제품 왼쪽 위 모서리, cm). 결합되면 남는 제품 id를 돌려줌 */
     onMove?: (id: string, x: number, y: number) => string | void;
+    /** Shift를 누른 채 끌어 바꾼, 놓인 자리에서 띄운 높이(cm) */
+    onLift?: (id: string, lift: number) => void;
   },
 ): Desk3D {
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); // 이미지 저장용으로 그림 유지
@@ -312,19 +314,26 @@ export function createDesk3D(
     };
 
     // 받침(데스크 매트·모니터 받침대) 위에 놓인 제품은 그 높이만큼 올림. 받침끼리는 낮은 것 위에 높은 것
+    // 2D에서 받침보다 뒤(아래)로 보낸 제품은 받침 밑에 둠: 배열 앞쪽일수록 아래에 그려짐
+    const order = new Map(items.map((x, k) => [x.id, k]));
+    const liftOf = (i: DeskItem) => i.lift ?? 0;
     const topOf = (i: DeskItem) => supportTop(i) ?? 0;
     const supports = items.filter((i) => supportTop(i) !== undefined).sort((a, b) => topOf(a) - topOf(b));
     const supportBase = new Map<string, number>();
     const restOn = (i: DeskItem, pool: DeskItem[]) => {
       const c = center(i, desk);
       let base = 0;
-      for (const s of pool) if (s.id !== i.id && contains(s, desk, c.x, c.z)) base = Math.max(base, (supportBase.get(s.id) ?? 0) + topOf(s));
+      for (const s of pool) {
+        if (s.id === i.id || order.get(s.id)! > order.get(i.id)! || !contains(s, desk, c.x, c.z)) continue;
+        base = Math.max(base, (supportBase.get(s.id) ?? 0) + liftOf(s) + topOf(s));
+      }
       return base;
     };
     for (const s of supports) supportBase.set(s.id, restOn(s, supports.filter((x) => topOf(x) < topOf(s))));
     // 모니터 암은 책상 가장자리에 클램프로 고정하므로 받침대·선반이 겹쳐 있어도 책상 위에 섬
     const clampsToDesk = (i: DeskItem) => i.kind === "monitor-arm" || i.mount?.kind === "monitor-arm";
-    const baseOf = (i: DeskItem) => (clampsToDesk(i) ? 0 : supportBase.get(i.id) ?? restOn(i, supports));
+    // 놓인 높이 + 3D에서 띄운 높이 (클램프 고정 장비는 띄우지 않음)
+    const baseOf = (i: DeskItem) => (clampsToDesk(i) ? 0 : (supportBase.get(i.id) ?? restOn(i, supports)) + liftOf(i));
     const monitors = items.filter((i) => i.kind === "monitor" || i.kind === "ultrawide");
     const stands = items.filter((i) => hookTop(i) !== undefined);
 
@@ -378,7 +387,11 @@ export function createDesk3D(
   const ray = new THREE.Raycaster();
   let currentItems: DeskItem[] = [];
   let down: { x: number; y: number } | null = null;
-  let drag: { id: string; item: DeskItem; obj: THREE.Object3D; plane: THREE.Plane; offset: THREE.Vector3; moved: boolean; pointerId: number } | null = null;
+  let drag: {
+    id: string; item: DeskItem; obj: THREE.Object3D; plane: THREE.Plane; offset: THREE.Vector3; moved: boolean; pointerId: number;
+    /** Shift+끌기: 위아래로만 움직임. 화면 1px당 cm, 시작 높이 */
+    vertical?: { cmPerPx: number; startY: number; startLift: number; lift: number };
+  } | null = null;
   const aim = (e: PointerEvent) => {
     const rect = el.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), camera);
@@ -406,6 +419,13 @@ export function createDesk3D(
     const p = ray.ray.intersectPlane(plane, new THREE.Vector3());
     if (!p) return;
     drag = { id: item.id, item, obj, plane, offset: obj.position.clone().sub(p), moved: false, pointerId: e.pointerId };
+    // 모니터 암은 책상에 고정하므로 띄우지 않음
+    if (e.shiftKey && opts.onLift && item.kind !== "monitor-arm" && item.mount?.kind !== "monitor-arm") {
+      const dist = camera.position.distanceTo(obj.position);
+      const cmPerPx = (2 * dist * Math.tan((camera.fov * Math.PI) / 360)) / el.getBoundingClientRect().height;
+      const startLift = item.lift ?? 0;
+      drag.vertical = { cmPerPx, startY: obj.position.y, startLift, lift: startLift };
+    }
     controls.enabled = false;
     try {
       el.setPointerCapture(e.pointerId); // 캔버스 밖으로 끌어도 계속 따라오게
@@ -416,6 +436,16 @@ export function createDesk3D(
   const onPointerMove = (e: PointerEvent) => {
     if (drag && lastDesk) {
       if (!drag.moved && down && Math.hypot(e.clientX - down.x, e.clientY - down.y) <= 4) return;
+      if (drag.vertical && down) {
+        const v = drag.vertical;
+        v.lift = THREE.MathUtils.clamp(v.startLift + (down.y - e.clientY) * v.cmPerPx, 0, 150);
+        drag.obj.position.y = v.startY - v.startLift + v.lift;
+        drag.moved = true;
+        if (selection && selectedId === drag.id) selection.update();
+        el.style.cursor = "ns-resize";
+        dirty = true;
+        return;
+      }
       aim(e);
       const p = ray.ray.intersectPlane(drag.plane, new THREE.Vector3());
       if (!p) return;
@@ -451,7 +481,10 @@ export function createDesk3D(
     const d = endDrag();
     if (d) {
       down = null;
-      if (d.moved && lastDesk && opts.onMove) {
+      if (d.moved && d.vertical && opts.onLift) {
+        opts.onLift(d.id, Math.round(d.vertical.lift * 10) / 10);
+        opts.onSelect(d.id);
+      } else if (d.moved && lastDesk && opts.onMove) {
         const x = d.obj.position.x + lastDesk.width / 2 - d.item.width / 2;
         const y = d.obj.position.z + lastDesk.depth / 2 - d.item.height / 2;
         const id = opts.onMove(d.id, x, y) || d.id;

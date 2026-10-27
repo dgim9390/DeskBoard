@@ -343,6 +343,13 @@ const STAND_TOP = 12;
 /** 데스크 선반 윗판 높이(cm) */
 const SHELF_TOP = 28;
 
+type MonitorPose = Pick<DeskItem, "pivot" | "tilt" | "swivel" | "raise">;
+const D2R = Math.PI / 180;
+/** 세로(피벗)는 일반 모니터만 (울트라와이드는 세로로 쓰지 않음) */
+const isPortrait = (pose: MonitorPose, ultra: boolean) => !!pose.pivot && !ultra;
+/** 화면 가운데 높이: 세로로 돌리면 아래 끝이 원래 높이에 오도록 올림 */
+const monitorCenterY = (w: number, ph: number, standH: number, pose: MonitorPose, ultra: boolean) => standH + (pose.raise ?? 0) + (isPortrait(pose, ultra) ? w : ph) / 2;
+
 /** 모니터 화면(패널) 앞뒤 위치. 암에 달면 2D 그림처럼 클램프보다 앞으로 나옴 */
 const monitorPanelZ = (d: number, arm: boolean) => (arm ? -d / 2 + d * 0.62 : -d / 2 + 4.3);
 
@@ -376,10 +383,11 @@ function armParts(ctx: ModelCtx, color: string, clamp: THREE.Vector3, elbow: THR
 }
 
 /** 모니터 (울트라와이드는 살짝 휘게) */
-function monitor(ctx: ModelCtx, w: number, d: number, p: Pal, ultra: boolean, arm?: Mount): THREE.Object3D[] {
+function monitor(ctx: ModelCtx, w: number, d: number, p: Pal, ultra: boolean, arm?: Mount, pose: MonitorPose = {}): THREE.Object3D[] {
   const ph = w * (ultra ? 0.43 : 0.575);
   const standH = arm ? 14 : 11;
   const panelZ = monitorPanelZ(d, !!arm);
+  const cy = monitorCenterY(w, ph, standH, pose, ultra);
   const curve = ultra ? w * 0.07 : 0;
   const bend = (g: THREE.BufferGeometry) => {
     if (!curve) return g;
@@ -392,26 +400,29 @@ function monitor(ctx: ModelCtx, w: number, d: number, p: Pal, ultra: boolean, ar
     return g;
   };
   const out: THREE.Object3D[] = [];
-  const panel = shadow(new THREE.Mesh(bend(new THREE.BoxGeometry(w, ph, 1.4, 32, 1, 1)), ctx.mat(p.body, { rough: 0.45, metal: 0.2 })));
-  panel.position.set(0, standH + ph / 2, panelZ);
+  // 화면(패널·유리·뒷판)은 한 덩어리로 가운데를 기준으로 돌림: 스위블(좌우) → 틸트(뒤로 젖힘) → 피벗(세로)
+  const head = new THREE.Group();
+  head.position.set(0, cy, panelZ);
+  head.rotation.order = "YXZ";
+  head.rotation.set(-(pose.tilt ?? 0) * D2R, (pose.swivel ?? 0) * D2R, isPortrait(pose, ultra) ? Math.PI / 2 : 0);
+  head.add(shadow(new THREE.Mesh(bend(new THREE.BoxGeometry(w, ph, 1.4, 32, 1, 1)), ctx.mat(p.body, { rough: 0.45, metal: 0.2 }))));
   const screen = new THREE.Mesh(bend(new THREE.PlaneGeometry(w - 1.4, ph - 1.6, 32, 1)), ctx.screen);
-  screen.position.set(0, standH + ph / 2 + 0.2, panelZ + 0.72);
-  const back = box(w * 0.46, ph * 0.5, 2.2, ctx.mat(p.trim, { rough: 0.55 }), 0, standH + ph * 0.48, panelZ - 1.6);
-  out.push(panel, screen, back);
+  screen.position.set(0, 0.2, 0.72);
+  head.add(screen, box(w * 0.46, ph * 0.5, 2.2, ctx.mat(p.trim, { rough: 0.55 }), 0, -ph * 0.02, -1.6));
+  out.push(head);
 
   const metal = ctx.mat(arm ? ALU[arm.color] : p.trim, { rough: 0.35, metal: 0.6 });
   if (arm) {
     // 2D 그림과 같은 자리: 뒤쪽 왼편 클램프 → 팔꿈치 → 화면 뒤 가운데 VESA (화면은 클램프보다 앞으로 나옴)
-    const vy = standH + ph / 2;
-    out.push(...armParts(ctx, ARM[arm.color], v(-w * 0.3, 0, -d / 2 + 3.5), v(-w * 0.16, standH + ph * 0.28, -d / 2 + d * 0.3), v(0, vy, panelZ - 6), panelZ - 3));
+    out.push(...armParts(ctx, ARM[arm.color], v(-w * 0.3, 0, -d / 2 + 3.5), v(-w * 0.16, standH + ph * 0.28, -d / 2 + d * 0.3), v(0, cy, panelZ - 6), panelZ - 3));
   } else {
     // 받침대: 화면 아래 앞쪽으로 넓게, 목은 화면 뒤
     const bw = Math.min(26, w * 0.42);
     const bd = Math.max(6, d - 3);
     out.push(box(bw, 1, bd, metal, 0, 0.5, -d / 2 + 3 + bd / 2));
-    out.push(box(5.5, standH + ph * 0.45, 2.4, metal, 0, (standH + ph * 0.45) / 2, panelZ - 2.2));
+    out.push(box(5.5, cy, 2.4, metal, 0, cy / 2, panelZ - 2.2));
   }
-  const l = pointLight(ctx, SCREEN_GLOW, 70, v(0, standH + ph / 2, panelZ + 20), 220);
+  const l = pointLight(ctx, SCREEN_GLOW, 70, v(0, cy, panelZ + 20), 220);
   if (l) out.push(l);
   return out;
 }
@@ -1169,7 +1180,7 @@ export function buildItem(ctx: ModelCtx, item: DeskItem, opts: { hangTop?: numbe
   const kind = item.kind ?? "generic";
   let parts: THREE.Object3D[];
   if (opts.hangTop !== undefined && kind === "headphones") parts = hangingHeadphones(ctx, w, p, opts.hangTop);
-  else if (kind === "monitor" || kind === "ultrawide") parts = monitor(ctx, w, d, p, kind === "ultrawide", item.mount?.kind === "monitor-arm" ? item.mount : undefined);
+  else if (kind === "monitor" || kind === "ultrawide") parts = monitor(ctx, w, d, p, kind === "ultrawide", item.mount?.kind === "monitor-arm" ? item.mount : undefined, item);
   else if (kind === "photo") parts = photoModel(ctx, item, w, d, opts.hangTop);
   else if (BUILD[kind]) parts = BUILD[kind]!(ctx, w, d, p, item);
   else parts = genericModel(ctx, item, w, d, p);
@@ -1192,5 +1203,6 @@ export function monitorTop(item: DeskItem) {
   const ultra = item.kind === "ultrawide";
   const ph = item.width * (ultra ? 0.43 : 0.575);
   const arm = item.mount?.kind === "monitor-arm";
-  return { y: (arm ? 14 : 11) + ph, z: monitorPanelZ(item.height, arm) };
+  const half = isPortrait(item, ultra) ? item.width / 2 : ph / 2;
+  return { y: monitorCenterY(item.width, ph, arm ? 14 : 11, item, ultra) + half, z: monitorPanelZ(item.height, arm) };
 }

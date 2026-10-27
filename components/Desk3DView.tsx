@@ -36,6 +36,7 @@ export function Desk3DView({ selectedId, onSelect, hideUi }: Props) {
             if (!cur) return;
             return useDeskStore.getState().updateItemTransform(id, { x, y, width: cur.width, height: cur.height, rotation: cur.rotation });
           },
+          onLift: (id, lift) => useDeskStore.getState().setItemPose(id, { lift: lift > 0 ? lift : undefined }),
         });
         const s = useDeskStore.getState();
         engine.current.update({ desk: s.desk, items: s.deskItems, selectedId });
@@ -74,7 +75,7 @@ export function Desk3DView({ selectedId, onSelect, hideUi }: Props) {
       {status === "ready" && !hideUi && (
         <>
           <View pointerEvents="none" className="absolute bottom-3 left-3 rounded-full bg-black/45 px-3 py-1.5">
-            <Text className="text-[11px] text-zinc-300">빈 곳을 끌어 돌리기 · 제품을 끌어 옮기기 · 스크롤로 확대</Text>
+            <Text className="text-[11px] text-zinc-300">빈 곳을 끌어 돌리기 · 제품을 끌어 옮기기 · Shift+끌기로 높이 · 스크롤로 확대</Text>
           </View>
           <Pressable
             onPress={() => engine.current?.resetView()}

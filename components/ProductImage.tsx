@@ -1513,13 +1513,18 @@ const genericArt = (p: Pal, label: string, dims?: { w: number; h: number }): Art
   };
 };
 
-function buildArt(kind: ProductKind, p: Pal, mount?: MountInfo, dims?: { w: number; h: number }, label = ""): Art {
+function buildArt(kind: ProductKind, p: Pal, mount?: MountInfo, dims?: { w: number; h: number }, label = "", pivot = false): Art {
   if (kind === "photo" || kind === "generic") return genericArt(p, label, dims);
   if (kind === "monitor" || kind === "ultrawide") {
     const ultra = kind === "ultrawide";
     const w = (dims?.w ?? (ultra ? 81.5 : 61.5)) * 10;
     const d = (dims?.h ?? (ultra ? 24 : 22)) * 10;
-    return monitorArt(p, w, d, ultra, mount?.kind === "monitor-arm" ? PAL[mount.color] : undefined);
+    const arm = mount?.kind === "monitor-arm" ? PAL[mount.color] : undefined;
+    if (!pivot || ultra) return monitorArt(p, w, d, ultra, arm);
+    // 세로로 돌린 모니터(피벗): 위에서 보면 화면 폭이 세로 길이(가로의 약 0.575)만큼으로 좁아짐. 자리는 그대로 두고 가운데에 그림
+    const pw = w * 0.575;
+    const narrow = monitorArt(p, pw, d, false, arm);
+    return { w, h: d, node: <G transform={`translate(${(w - pw) / 2} 0)`}>{narrow.node}</G> };
   }
   if (mount?.kind === "laptop-vertical-stand") return laptopInVerticalStand(p, PAL[mount.color], (dims?.h ?? 31) * 10);
   const art = ART[kind](p);
@@ -1537,6 +1542,8 @@ interface Props {
   mount?: MountInfo;
   /** 실제 크기(cm). 모니터는 이 비율로 스탠드/베젤을 다시 그림 */
   dims?: { w: number; h: number };
+  /** 모니터를 세로로 돌림(피벗) */
+  pivot?: boolean;
   /** 사용자 제품(photo)의 사진 주소 */
   imageUrl?: string;
   /** 사진이 없을 때 상자에 적을 이름 */
@@ -1579,8 +1586,8 @@ function PhotoImage({ uri, width, height, fallback }: { uri: string; width: numb
   );
 }
 
-export function ProductImage({ kind, width, height, fit = "meet", color, mount, dims, imageUrl, label }: Props) {
-  const art = buildArt(kind, PAL[color ?? defaultColor(kind)], mount, dims, label);
+export function ProductImage({ kind, width, height, fit = "meet", color, mount, dims, imageUrl, label, pivot }: Props) {
+  const art = buildArt(kind, PAL[color ?? defaultColor(kind)], mount, dims, label, pivot);
   const svg = (
     <Svg
       width={width}

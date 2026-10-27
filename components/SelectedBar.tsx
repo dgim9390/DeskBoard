@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { isCutout, removeBackground } from "@/lib/cutout";
 import { guessModel, MODEL_CHOICES } from "@/lib/productLink";
 import { toast } from "@/lib/toast";
-import { MIN_ITEM_CM, defaultColor, findPartner, reorderTarget, useDeskStore, type DeskItem, type ItemColor } from "@/store/useDeskStore";
+import { MIN_ITEM_CM, defaultColor, findPartner, reorderTarget, useDeskStore, type DeskItem, type ItemColor, type ItemPose } from "@/store/useDeskStore";
 import { SizeFields } from "./SizeFields";
 
 const COLORS: { value: ItemColor; label: string; fill: string }[] = [
@@ -37,6 +37,48 @@ interface Props {
   onSelect: (id: string) => void;
 }
 
+/** 모니터 각도·높이 조절: − 값 + (값은 직접 입력도 됨) */
+function Stepper({ label, value, min, max, unit = "°", onChange }: { label: string; value: number; min: number; max: number; unit?: string; onChange: (v: number) => void }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const commit = () => {
+    const n = Math.round(Number(text));
+    if (Number.isFinite(n) && text.trim() !== "") onChange(Math.min(max, Math.max(min, n)));
+    else setText(String(value));
+  };
+  const btn = (icon: "remove" | "add", next: number, disabled: boolean) => (
+    <Pressable
+      onPress={() => onChange(next)}
+      disabled={disabled}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={`${label} ${icon === "add" ? "늘리기" : "줄이기"}`}
+      className={`h-7 w-7 items-center justify-center rounded-md ${disabled ? "opacity-35" : "active:bg-zinc-800"}`}
+    >
+      <Ionicons name={icon} size={14} color="#d4d4d8" />
+    </Pressable>
+  );
+  return (
+    <View className="mr-2 flex-row items-center rounded-lg border border-zinc-700 px-1">
+      {btn("remove", Math.max(min, value - 1), value <= min)}
+      <Text className="ml-1 text-xs text-zinc-400">{label}</Text>
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        onBlur={commit}
+        onSubmitEditing={commit}
+        keyboardType="numbers-and-punctuation"
+        selectTextOnFocus
+        accessibilityLabel={`${label} ${unit === "°" ? "각도" : unit}`}
+        className="mx-1 rounded bg-zinc-950 px-1 py-0.5 text-center text-xs text-zinc-100"
+        style={{ width: 34 }}
+      />
+      <Text className="mr-1 text-xs text-zinc-400">{unit}</Text>
+      {btn("add", Math.min(max, value + 1), value >= max)}
+    </View>
+  );
+}
+
 /** 선택한 장비의 색상 / 크기(cm) 입력 / 회전 / 삭제 / 앞뒤 배치 / 결합·분리 */
 export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
   const updateItemSize = useDeskStore((s) => s.updateItemSize);
@@ -45,6 +87,7 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
   const detachMount = useDeskStore((s) => s.detachMount);
   const mountNearest = useDeskStore((s) => s.mountNearest);
   const reorder = useDeskStore((s) => s.reorder);
+  const setPose = (pose: ItemPose) => useDeskStore.getState().setItemPose(item.id, pose);
   const [cutting, setCutting] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   useEffect(() => setModelOpen(false), [item.id]); // 다른 제품을 고르면 목록 닫기
@@ -155,6 +198,23 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
         {canCut && <Chip icon="cut-outline" label={cutting ? "지우는 중…" : "배경 지우기"} onPress={cutBackground} disabled={cutting} />}
         {item.link && <Chip icon="open-outline" label="제품 페이지" onPress={() => Linking.openURL(item.link!)} />}
       </View>
+
+      {(item.kind === "monitor" || item.kind === "ultrawide") && (
+        <View className="mt-2 flex-row items-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
+          {item.kind === "monitor" && (
+            <Chip icon="phone-portrait-outline" label={item.pivot ? "가로로 돌리기" : "세로로 돌리기 (피벗)"} onPress={() => setPose({ pivot: !item.pivot || undefined })} />
+          )}
+          <Stepper label="틸트" value={item.tilt ?? 0} min={-15} max={35} onChange={(tilt) => setPose({ tilt: tilt || undefined })} />
+          <Stepper label="스위블" value={item.swivel ?? 0} min={-90} max={90} onChange={(swivel) => setPose({ swivel: swivel || undefined })} />
+          {/* 높이 조절: 받침대는 실제 높낮이 범위 정도, 모니터 암은 더 넓게 */}
+          <Stepper label="높이" unit="cm" value={item.raise ?? 0} min={0} max={item.mount?.kind === "monitor-arm" ? 30 : 15} onChange={(raise) => setPose({ raise: raise || undefined })} />
+        </View>
+      )}
+      {!!item.lift && (
+        <View className="mt-2 flex-row items-center">
+          <Chip icon="arrow-down-circle-outline" label={`내려놓기 (${item.lift}cm 띄움)`} onPress={() => setPose({ lift: undefined })} />
+        </View>
+      )}
 
       {modelOpen && item.kind === "photo" && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: 8 }}>

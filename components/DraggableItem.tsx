@@ -182,6 +182,7 @@ export function DraggableItem({ item, scale, originX, originY, deskWidthPx, desk
             dims={{ w: item.width, h: item.height }}
             imageUrl={item.imageUrl}
             label={item.name}
+            pivot={item.pivot}
           />
           {selected && (
             <View

@@ -72,7 +72,16 @@ export interface DeskItem {
   tall?: number;
   /** 사진 제품이 3D에서 쓸 모형 종류 (없으면 이름으로 자동) */
   model?: ProductKind;
+  /** 3D에서 놓인 자리보다 띄운 높이(cm) */
+  lift?: number;
+  /** 모니터: 세로로 돌림(피벗), 뒤로 젖힘(틸트, 도), 좌우로 돌림(스위블, 도), 화면을 올린 높이(cm) */
+  pivot?: boolean;
+  raise?: number;
+  tilt?: number;
+  swivel?: number;
 }
+
+export type ItemPose = Partial<Pick<DeskItem, "lift" | "pivot" | "tilt" | "swivel" | "raise">>;
 
 /** 사용자가 링크(또는 직접 입력)로 만든 제품. "내 제품"에 보관돼 다시 쓸 수 있음 */
 export interface CustomProduct {
@@ -165,6 +174,8 @@ interface DeskState {
   setItemTall: (id: string, tall: number | undefined) => void;
   /** 사진 제품의 3D 모형 종류. undefined면 자동 */
   setItemModel: (id: string, model: ProductKind | undefined) => void;
+  /** 3D 띄운 높이, 모니터 피벗·틸트·스위블 */
+  setItemPose: (id: string, pose: ItemPose) => void;
   detachMount: (id: string) => void;
   /** 가장 가까운 짝과 결합. 결합 후 남는 아이템 id를 반환 */
   mountNearest: (id: string) => string;
@@ -310,7 +321,7 @@ const fit = (i: DeskItem, desk: DeskSize): DeskItem => {
   return { ...i, rotation, width, height, x: p.x, y: p.y };
 };
 
-const UNDERLAY_KINDS: ProductKind[] = ["desk-mat", "mouse-pad", "monitor-riser"];
+const UNDERLAY_KINDS: ProductKind[] = ["desk-mat", "mouse-pad", "monitor-riser", "speaker-stand", "desk-shelf"];
 
 const makeId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -425,6 +436,7 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
 
   setItemTall: (id, tall) => set((s) => ({ deskItems: s.deskItems.map((i) => (i.id === id ? { ...i, tall } : i)) })),
   setItemModel: (id, model) => set((s) => ({ deskItems: s.deskItems.map((i) => (i.id === id ? { ...i, model } : i)) })),
+  setItemPose: (id, pose) => set((s) => ({ deskItems: s.deskItems.map((i) => (i.id === id ? { ...i, ...pose } : i)) })),
 
   setItemImage: (id, imageUrl) =>
     set((s) => {
@@ -528,7 +540,7 @@ const history = { lastKey: null as string | null, lastTime: 0 };
 /** 책상·제품을 바꾸는 동작. 실행 전 상태를 기록해 두고, 실제로 바뀐 경우에만 되돌리기 목록에 넣음 */
 type Tracked =
   | "setDeskSize" | "setDeskMaterial" | "setLighting" | "addDeskItem" | "updateItemPosition" | "updateItemSize"
-  | "updateItemRotation" | "updateItemTransform" | "setItemColor" | "setItemImage" | "setItemTall" | "setItemModel" | "detachMount" | "mountNearest" | "reorder"
+  | "updateItemRotation" | "updateItemTransform" | "setItemColor" | "setItemImage" | "setItemTall" | "setItemModel" | "setItemPose" | "detachMount" | "mountNearest" | "reorder"
   | "removeItem" | "clearDesk" | "loadSetup" | "duplicateItem" | "applyTemplate";
 
 /** 연속 입력(크기 타이핑, 화살표 이동 등)은 1초 안이면 한 단계로 묶음 */
@@ -543,7 +555,7 @@ function trackHistory() {
   const st = useDeskStore.getState();
   const names: Tracked[] = [
     "setDeskSize", "setDeskMaterial", "setLighting", "addDeskItem", "updateItemPosition", "updateItemSize",
-    "updateItemRotation", "updateItemTransform", "setItemColor", "setItemImage", "setItemTall", "setItemModel", "detachMount", "mountNearest", "reorder",
+    "updateItemRotation", "updateItemTransform", "setItemColor", "setItemImage", "setItemTall", "setItemModel", "setItemPose", "detachMount", "mountNearest", "reorder",
     "removeItem", "clearDesk", "loadSetup", "duplicateItem", "applyTemplate",
   ];
   const wrapped: Partial<DeskState> = {};
