@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { MATERIALS } from "@/components/DeskSurface";
-import type { DeskMaterial } from "@/store/useDeskStore";
+import type { DeskMaterial, FloorKind } from "@/store/useDeskStore";
 
 // 3D 보기에서 쓰는 그림(텍스처). 모두 캔버스에 직접 그려 외부 파일이 필요 없음
 
@@ -154,16 +154,41 @@ export function calendarTexture() {
   return toTexture(c);
 }
 
-/** 바닥: 은은한 원목 마루 */
-export function floorTexture() {
+/** 바닥: 원목 마루(밝기 3가지), 타일, 카펫 */
+export function floorTexture(kind: FloorKind = "wood") {
   const [c, g] = canvas(1024, 1024);
   const rnd = seeded(3);
+  if (kind === "tile") {
+    // 60cm 타일 (한 장 = 텍스처 1/2.83, 반복 170cm 기준)
+    const n = 3;
+    const s = c.width / n;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      g.fillStyle = `hsl(30, 6%, ${74 + rnd() * 5}%)`;
+      g.fillRect(i * s, j * s, s, s);
+    }
+    g.fillStyle = "rgba(0,0,0,0.18)";
+    for (let i = 0; i <= n; i++) {
+      g.fillRect(i * s - 2, 0, 4, c.height);
+      g.fillRect(0, i * s - 2, c.width, 4);
+    }
+    return repeat(toTexture(c));
+  }
+  if (kind === "carpet") {
+    g.fillStyle = "hsl(30, 8%, 46%)";
+    g.fillRect(0, 0, c.width, c.height);
+    for (let i = 0; i < 26000; i++) {
+      g.fillStyle = rnd() > 0.5 ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.07)";
+      g.fillRect(rnd() * c.width, rnd() * c.height, 2, 2);
+    }
+    return repeat(toTexture(c));
+  }
+  const [hue, sat, light] = kind === "light" ? [32, 30, 60] : kind === "dark" ? [20, 24, 18] : [28, 18, 30];
   const plank = 128;
   for (let y = 0; y < c.height; y += plank) {
     const offset = rnd() * c.width;
     for (let x = -offset; x < c.width; x += 600) {
-      const l = 30 + rnd() * 10;
-      g.fillStyle = `hsl(28, 18%, ${l}%)`;
+      const l = light + rnd() * 10;
+      g.fillStyle = `hsl(${hue}, ${sat}%, ${l}%)`;
       g.fillRect(x, y, 600, plank);
       g.fillStyle = "rgba(0,0,0,0.25)";
       g.fillRect(x, y, 2, plank);
@@ -171,7 +196,10 @@ export function floorTexture() {
     g.fillStyle = "rgba(0,0,0,0.3)";
     g.fillRect(0, y, c.width, 2);
   }
-  const t = toTexture(c);
+  return repeat(toTexture(c));
+}
+
+function repeat(t: THREE.Texture) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }

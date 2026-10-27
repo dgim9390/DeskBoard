@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { FLAT_KINDS, guessModel, guessProduct } from "@/lib/productLink";
-import type { DeskItem, ItemColor, Lighting, Mount, ProductKind } from "@/store/useDeskStore";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import type { ChairKind, DeskItem, ItemColor, Lighting, Mount, ProductKind } from "@/store/useDeskStore";
 
 /**
  * 제품 3D 모형. 단위는 cm, 제품 바닥 가운데가 원점, 앞(사용자 쪽)이 +z.
@@ -17,6 +18,8 @@ export interface ModelCtx {
   label: (text: string, dark: boolean) => THREE.Material;
   /** 사용자 제품 사진. 다 불러오면 onReady로 크기를 알려줌 */
   photo: (url: string, onReady: (tex: THREE.Texture) => void) => void;
+  /** 사용자가 올린 3D 모델(.glb). 다 불러오면 원본 장면을 줌 (복제해서 씀) */
+  glb: (url: string, onReady: (model: THREE.Object3D) => void) => void;
   /** 그림자를 만드는 조명 개수 제한용 */
   shadowLights: { count: number };
 }
@@ -1171,6 +1174,25 @@ function hangingHeadphones(ctx: ModelCtx, w: number, p: Pal, top: number): THREE
   return out;
 }
 
+/** 올린 3D 모델을 제품 자리(가로 w × 깊이 d)에 맞춰 놓음: 비율은 그대로, 바닥 가운데 기준 */
+function glbItem(ctx: ModelCtx, url: string, w: number, d: number): THREE.Object3D[] {
+  const g = new THREE.Group();
+  const base = box(w, 0.4, d, new THREE.MeshBasicMaterial({ visible: false }));
+  base.castShadow = false;
+  g.add(base); // 불러오기 전에도 클릭할 수 있게
+  ctx.glb(url, (src) => {
+    const m = src.clone(true);
+    const b = new THREE.Box3().setFromObject(m);
+    const size = b.getSize(new THREE.Vector3());
+    if (size.x <= 0 || size.z <= 0) return;
+    m.scale.multiplyScalar(Math.min(w / size.x, d / size.z));
+    const fit = new THREE.Box3().setFromObject(m);
+    m.position.set(-(fit.min.x + fit.max.x) / 2, -fit.min.y, -(fit.min.z + fit.max.z) / 2);
+    g.add(m);
+  });
+  return [g];
+}
+
 /** 제품 하나의 3D 모형 (원점 = 제품 바닥 가운데) */
 export function buildItem(ctx: ModelCtx, item: DeskItem, opts: { hangTop?: number } = {}): THREE.Group {
   const g = new THREE.Group();
@@ -1179,7 +1201,8 @@ export function buildItem(ctx: ModelCtx, item: DeskItem, opts: { hangTop?: numbe
   const p = PAL[colorOf(item)];
   const kind = item.kind ?? "generic";
   let parts: THREE.Object3D[];
-  if (opts.hangTop !== undefined && kind === "headphones") parts = hangingHeadphones(ctx, w, p, opts.hangTop);
+  if (item.modelUrl) parts = glbItem(ctx, item.modelUrl, w, d);
+  else if (opts.hangTop !== undefined && kind === "headphones") parts = hangingHeadphones(ctx, w, p, opts.hangTop);
   else if (kind === "monitor" || kind === "ultrawide") parts = monitor(ctx, w, d, p, kind === "ultrawide", item.mount?.kind === "monitor-arm" ? item.mount : undefined, item);
   else if (kind === "photo") parts = photoModel(ctx, item, w, d, opts.hangTop);
   else if (BUILD[kind]) parts = BUILD[kind]!(ctx, w, d, p, item);
@@ -1205,4 +1228,62 @@ export function monitorTop(item: DeskItem) {
   const arm = item.mount?.kind === "monitor-arm";
   const half = isPortrait(item, ultra) ? item.width / 2 : ph / 2;
   return { y: monitorCenterY(item.width, ph, arm ? 14 : 11, item, ultra) + half, z: monitorPanelZ(item.height, arm) };
+}
+
+// ── 의자 (방 꾸미기) ──────────────────────────────────────
+/** 둥근 모서리 상자 (방석·등받이) */
+function softBox(w: number, h: number, d: number, r: number, m: THREE.Material) {
+  return shadow(new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2, h / 2, d / 2)), m));
+}
+
+/**
+ * 의자 모형 (원점 = 바닥 가운데, 앉는 쪽이 -z = 책상 쪽, 등받이가 +z).
+ * 사무용: 메시 등받이 + 팔걸이. 게이밍: 높은 버킷 등받이 + 날개 + 헤드레스트.
+ */
+export function chairModel(mat: ModelCtx["mat"], kind: ChairKind): THREE.Group {
+  const g = new THREE.Group();
+  const body = mat("#26272b", { rough: 0.7 });
+  const frame = mat("#1a1b1e", { rough: 0.45, metal: 0.4 });
+  const gaming = kind === "gaming";
+  // 다섯 갈래 다리 + 바퀴 + 가스 실린더
+  const R = gaming ? 33 : 30;
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const tip = v(Math.sin(a) * R, 7, Math.cos(a) * R);
+    g.add(rod(v(0, 9, 0), tip, 1.6, frame));
+    const wheel = shadow(new THREE.Mesh(new THREE.SphereGeometry(2.6, 14, 10), frame));
+    wheel.position.set(tip.x, 2.6, tip.z);
+    g.add(wheel);
+  }
+  g.add(cyl(3.2, 3.2, 4, frame, 0, 9), cyl(2.1, 2.1, 34, frame, 0, 26));
+  const seatY = gaming ? 48 : 46;
+  if (!gaming) {
+    g.add(softBox(50, 7, 48, 3, body).translateY(seatY).translateZ(-1));
+    // 메시 등받이: 살짝 뒤로 젖혀짐
+    const back = softBox(46, 56, 4, 2, mat("#1f2023", { rough: 0.9 }));
+    back.position.set(0, seatY + 36, 24);
+    back.rotation.x = 0.16;
+    g.add(back, box(6, 4, 26, frame, 0, seatY + 2, 14));
+    for (const sx of [-1, 1]) {
+      g.add(box(2.2, 18, 2.2, frame, sx * 26, seatY + 9, 2), softBox(6, 3, 24, 1.2, body).translateX(sx * 26).translateY(seatY + 19).translateZ(-1));
+    }
+  } else {
+    const accent = mat("#4f46e5", { rough: 0.6 });
+    g.add(softBox(54, 10, 52, 4, body).translateY(seatY));
+    for (const sx of [-1, 1]) g.add(softBox(8, 7, 50, 3, body).translateX(sx * 24).translateY(seatY + 7)); // 방석 옆 볼스터
+    const back = new THREE.Group();
+    back.add(softBox(52, 86, 11, 4, body));
+    for (const sx of [-1, 1]) {
+      back.add(softBox(9, 62, 15, 4, body).translateX(sx * 23).translateY(-8).translateZ(-3)); // 날개
+      back.add(box(2.5, 70, 0.6, accent, sx * 13, -2, -5.8)); // 포인트 줄무늬
+    }
+    back.add(softBox(26, 12, 7, 3, mat("#1c1c1f", { rough: 0.8 })).translateY(30).translateZ(-8)); // 헤드레스트 쿠션
+    back.position.set(0, seatY + 50, 26);
+    back.rotation.x = 0.14;
+    g.add(back);
+    for (const sx of [-1, 1]) {
+      g.add(box(2.6, 20, 2.6, frame, sx * 30, seatY + 10, 4), softBox(8, 3.5, 26, 1.4, body).translateX(sx * 30).translateY(seatY + 21));
+    }
+  }
+  return g;
 }

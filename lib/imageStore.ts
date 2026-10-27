@@ -7,7 +7,8 @@ const STORE = "images";
 export const REF_PREFIX = "localimg:";
 
 /** 따로 보관할 만큼 큰 사진인지 (작은 아이콘 등은 그대로 둠) */
-export const isStorableImage = (v: unknown): v is string => typeof v === "string" && v.length > 2048 && v.startsWith("data:image/");
+// 사진과 함께 사용자가 올린 3D 모델(data:model/…)도 따로 보관
+export const isStorableImage = (v: unknown): v is string => typeof v === "string" && v.length > 2048 && /^data:(image|model)\//.test(v);
 
 export const imageStoreAvailable = () => typeof indexedDB !== "undefined";
 

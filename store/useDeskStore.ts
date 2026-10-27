@@ -74,6 +74,8 @@ export interface DeskItem {
   model?: ProductKind;
   /** 3D에서 놓인 자리보다 띄운 높이(cm) */
   lift?: number;
+  /** 사용자가 올린 3D 모델 파일(.glb, data URL). 있으면 3D에서 이 모양으로 보임 */
+  modelUrl?: string;
   /** 모니터: 세로로 돌림(피벗), 뒤로 젖힘(틸트, 도), 좌우로 돌림(스위블, 도), 화면을 올린 높이(cm) */
   pivot?: boolean;
   raise?: number;
@@ -81,7 +83,7 @@ export interface DeskItem {
   swivel?: number;
 }
 
-export type ItemPose = Partial<Pick<DeskItem, "lift" | "pivot" | "tilt" | "swivel" | "raise">>;
+export type ItemPose = Partial<Pick<DeskItem, "lift" | "pivot" | "tilt" | "swivel" | "raise" | "modelUrl">>;
 
 /** 사용자가 링크(또는 직접 입력)로 만든 제품. "내 제품"에 보관돼 다시 쓸 수 있음 */
 export interface CustomProduct {
@@ -107,12 +109,22 @@ export type DeskMaterial = "oak" | "walnut" | "maple" | "white" | "black" | "con
 export type Lighting = "day" | "evening" | "night";
 
 /** 책상 크기와 분위기. 셋업에 함께 저장됨 (예전 셋업은 material/lighting 이 없어 기본값) */
+export type FloorKind = "wood" | "light" | "dark" | "tile" | "carpet";
+export type ChairKind = "office" | "gaming";
+
 export interface DeskSize {
   width: number; // cm
   depth: number; // cm
   material?: DeskMaterial; // 없으면 oak
   lighting?: Lighting; // 없으면 day
+  /** 3D 방 꾸미기: 벽 색(없으면 웜 화이트), 바닥(없으면 원목), 창문, 의자(없으면 없음) */
+  wall?: string;
+  floor?: FloorKind;
+  window?: boolean;
+  chair?: ChairKind;
 }
+
+export type RoomStyle = Partial<Pick<DeskSize, "wall" | "floor" | "window" | "chair">>;
 
 export type NewDeskItem = Omit<DeskItem, "id" | "rotation"> & { rotation?: number };
 
@@ -160,6 +172,7 @@ interface DeskState {
   setDeskSize: (width: number, depth: number) => void;
   setDeskMaterial: (material: DeskMaterial) => void;
   setLighting: (lighting: Lighting) => void;
+  setRoom: (room: RoomStyle) => void;
   /** 추가된 아이템 id를 반환. 결합되면 결합된 호스트(모니터/노트북)의 id */
   addDeskItem: (item: NewDeskItem) => string;
   updateItemPosition: (id: string, x: number, y: number) => void;
@@ -389,6 +402,7 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
 
   setDeskMaterial: (material) => set((s) => ({ desk: { ...s.desk, material } })),
   setLighting: (lighting) => set((s) => ({ desk: { ...s.desk, lighting } })),
+  setRoom: (room) => set((s) => ({ desk: { ...s.desk, ...room } })),
 
   addDeskItem: (item) => {
     const { desk, deskItems } = get();
@@ -539,7 +553,7 @@ const history = { lastKey: null as string | null, lastTime: 0 };
 
 /** 책상·제품을 바꾸는 동작. 실행 전 상태를 기록해 두고, 실제로 바뀐 경우에만 되돌리기 목록에 넣음 */
 type Tracked =
-  | "setDeskSize" | "setDeskMaterial" | "setLighting" | "addDeskItem" | "updateItemPosition" | "updateItemSize"
+  | "setDeskSize" | "setDeskMaterial" | "setLighting" | "setRoom" | "addDeskItem" | "updateItemPosition" | "updateItemSize"
   | "updateItemRotation" | "updateItemTransform" | "setItemColor" | "setItemImage" | "setItemTall" | "setItemModel" | "setItemPose" | "detachMount" | "mountNearest" | "reorder"
   | "removeItem" | "clearDesk" | "loadSetup" | "duplicateItem" | "applyTemplate";
 
@@ -554,7 +568,7 @@ const COALESCE: Partial<Record<Tracked, (args: unknown[]) => string>> = {
 function trackHistory() {
   const st = useDeskStore.getState();
   const names: Tracked[] = [
-    "setDeskSize", "setDeskMaterial", "setLighting", "addDeskItem", "updateItemPosition", "updateItemSize",
+    "setDeskSize", "setDeskMaterial", "setLighting", "setRoom", "addDeskItem", "updateItemPosition", "updateItemSize",
     "updateItemRotation", "updateItemTransform", "setItemColor", "setItemImage", "setItemTall", "setItemModel", "setItemPose", "detachMount", "mountNearest", "reorder",
     "removeItem", "clearDesk", "loadSetup", "duplicateItem", "applyTemplate",
   ];

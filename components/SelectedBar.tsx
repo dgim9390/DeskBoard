@@ -3,6 +3,7 @@ import { Linking, Pressable, ScrollView, Text, TextInput, View } from "react-nat
 import { Ionicons } from "@expo/vector-icons";
 import { isCutout, removeBackground } from "@/lib/cutout";
 import { guessModel, MODEL_CHOICES } from "@/lib/productLink";
+import { pickModelFile } from "@/lib/modelFile";
 import { toast } from "@/lib/toast";
 import { MIN_ITEM_CM, defaultColor, findPartner, reorderTarget, useDeskStore, type DeskItem, type ItemColor, type ItemPose } from "@/store/useDeskStore";
 import { SizeFields } from "./SizeFields";
@@ -88,6 +89,14 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
   const mountNearest = useDeskStore((s) => s.mountNearest);
   const reorder = useDeskStore((s) => s.reorder);
   const setPose = (pose: ItemPose) => useDeskStore.getState().setItemPose(item.id, pose);
+  // 3D 모델 파일(.glb)을 올리면 3D 보기에서 이 제품 자리에 그 모양으로 보임
+  const uploadModel = async () => {
+    const r = await pickModelFile();
+    if (!r) return;
+    if (r.error || !r.url) return toast(r.error ?? "파일을 읽지 못했어요", { icon: "alert-circle-outline" });
+    setPose({ modelUrl: r.url });
+    toast("3D 모델을 올렸어요. 3D 보기에서 확인해 보세요", { icon: "cube-outline", action: { label: "되돌리기", onPress: () => useDeskStore.getState().undo() } });
+  };
   const [cutting, setCutting] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   useEffect(() => setModelOpen(false), [item.id]); // 다른 제품을 고르면 목록 닫기
@@ -197,6 +206,8 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
         {item.kind === "photo" && <Chip icon="cube-outline" label={`3D: ${modelText}`} onPress={() => setModelOpen((v) => !v)} />}
         {canCut && <Chip icon="cut-outline" label={cutting ? "지우는 중…" : "배경 지우기"} onPress={cutBackground} disabled={cutting} />}
         {item.link && <Chip icon="open-outline" label="제품 페이지" onPress={() => Linking.openURL(item.link!)} />}
+        <Chip icon="cube-outline" label={item.modelUrl ? "3D 모델 바꾸기" : "3D 모델 올리기"} onPress={uploadModel} />
+        {item.modelUrl && <Chip icon="close-circle-outline" label="3D 모델 지우기" onPress={() => setPose({ modelUrl: undefined })} />}
       </View>
 
       {(item.kind === "monitor" || item.kind === "ultrawide") && (

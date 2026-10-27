@@ -1,9 +1,11 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { imageKey } from "@/lib/imageStore";
 import { imageProxyUrl } from "@/lib/productLink";
-import type { DeskItem, DeskMaterial, DeskSize, Lighting } from "@/store/useDeskStore";
-import { buildItem, hookTop, isHeadphones, monitorTop, supportTop, type MatOpts, type ModelCtx } from "./models";
+import type { DeskItem, DeskMaterial, DeskSize, FloorKind, Lighting } from "@/store/useDeskStore";
+import { buildItem, chairModel, hookTop, isHeadphones, monitorTop, supportTop, type MatOpts, type ModelCtx } from "./models";
 import { artTexture, calendarTexture, clockTexture, deskTexture, floorTexture, labelTexture, screenOffTexture } from "./textures";
 
 /**
@@ -117,6 +119,28 @@ export function createDesk3D(
   calendarMat.userData.cached = true;
   const labelCache = new Map<string, THREE.Material>();
   const photoCache = new Map<string, Promise<THREE.Texture | null>>();
+  // 올린 3D 모델: 파일마다 한 번만 읽고, 제품마다 복제해서 씀 (모양·재질은 공유하므로 다시 그릴 때 지우지 않음)
+  const glbCache = new Map<string, Promise<THREE.Object3D | null>>();
+  const loadGlb = (url: string) => {
+    let p = glbCache.get(url);
+    if (!p) {
+      p = new GLTFLoader()
+        .loadAsync(url)
+        .then((gltf) => {
+          gltf.scene.traverse((o) => {
+            const mesh = o as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            mesh.castShadow = mesh.receiveShadow = true;
+            mesh.geometry.userData.shared = true;
+            for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) m.userData.cached = true;
+          });
+          return gltf.scene;
+        })
+        .catch(() => null);
+      glbCache.set(url, p);
+    }
+    return p;
+  };
   const loader = new THREE.TextureLoader();
   loader.setCrossOrigin("anonymous");
   let disposed = false;
@@ -148,7 +172,13 @@ export function createDesk3D(
   scene.add(room, itemsGroup, lights);
   let selection: THREE.BoxHelper | null = null;
 
-  const floorTex = floorTexture();
+  // 바닥 텍스처는 종류별로 한 번만 만들어 두고 바꿔 끼움
+  const floorTexes = new Map<FloorKind, THREE.Texture>();
+  const floorTexFor = (k: FloorKind) => {
+    let t = floorTexes.get(k);
+    if (!t) floorTexes.set(k, (t = floorTexture(k)));
+    return t;
+  };
   // 접지 그림자: 가운데가 진하고 가장자리로 사라지는 원 하나를 모든 제품이 같이 씀
   const contactTex = (() => {
     const c = document.createElement("canvas");
@@ -168,7 +198,8 @@ export function createDesk3D(
   contactGeo.userData.shared = true;
   const contactMat = new THREE.MeshBasicMaterial({ map: contactTex, transparent: true, depthWrite: false, opacity: 0.6 });
   contactMat.userData.cached = true;
-  const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.85 });
+  const floorMat = new THREE.MeshStandardMaterial({ map: floorTexFor("wood"), roughness: 0.85 });
+  const windowMat = new THREE.MeshBasicMaterial({ color: "#eef4ff" }); // 창밖: 조명별 색은 applyMood
   const wallMat = new THREE.MeshStandardMaterial({ color: "#cfcac2", roughness: 0.95 });
   const trimMat = new THREE.MeshStandardMaterial({ color: "#e9e6e0", roughness: 0.7 });
   // 방: 책상 크기에 맞춘 작은 방 (바닥 + 뒤·양옆 벽). 벽은 안쪽 면만 그려서 밖에서 보면 투명
@@ -186,7 +217,13 @@ export function createDesk3D(
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, floorY, backZ + Dp / 2);
     floor.receiveShadow = true;
-    floorTex.repeat.set(W / 170, Dp / 170);
+    const ft = floorTexFor(desk.floor ?? "wood");
+    ft.repeat.set(W / 170, Dp / 170);
+    if (floorMat.map !== ft) {
+      floorMat.map = ft;
+      floorMat.needsUpdate = true;
+    }
+    floorMat.roughness = desk.floor === "tile" ? 0.45 : desk.floor === "carpet" ? 1 : 0.85;
     const wall = (w: number, x: number, z: number, rotY: number) => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, H), wallMat);
       m.position.set(x, floorY + H / 2, z);
@@ -202,6 +239,31 @@ export function createDesk3D(
     wall(Dp, -W / 2, backZ + Dp / 2, Math.PI / 2);
     wall(Dp, W / 2, backZ + Dp / 2, -Math.PI / 2);
     roomParts.add(floor);
+    if (desk.window) {
+      // 왼쪽 벽 창문: 창밖 유리 + 창틀 + 가운데 창살
+      const win = new THREE.Group();
+      const ww = 110;
+      const wh = 120;
+      const glass = new THREE.Mesh(new THREE.PlaneGeometry(ww, wh), windowMat);
+      win.add(glass);
+      for (const [w, h, x, y] of [[ww + 10, 5, 0, wh / 2 + 2.5], [ww + 10, 7, 0, -wh / 2 - 3.5], [5, wh, -ww / 2 - 2.5, 0], [5, wh, ww / 2 + 2.5, 0], [3, wh, 0, 0]] as const) {
+        const f = new THREE.Mesh(new THREE.BoxGeometry(w, h, 4), trimMat);
+        f.position.set(x, y, 1.5);
+        f.castShadow = true;
+        win.add(f);
+      }
+      win.position.set(-W / 2 + 0.3, floorY + 150, backZ + Math.min(Dp * 0.32, 95));
+      win.rotation.y = Math.PI / 2;
+      roomParts.add(win);
+    }
+    if (desk.chair) {
+      // 책상 앞에 살짝 빼 둔 의자 (방금 일어난 것처럼 조금 돌아감)
+      const chair = chairModel(mat, desk.chair);
+      chair.position.set(desk.width * 0.06, floorY, desk.depth / 2 + 14); // 방석 앞쪽이 책상 밑으로 들어가게
+      chair.rotation.y = -0.12;
+      chair.traverse((o) => (o.castShadow = o.receiveShadow = true));
+      roomParts.add(chair);
+    }
     return Dp;
   }
   let roomDepth = 280;
@@ -212,7 +274,7 @@ export function createDesk3D(
   room.add(deskParts);
 
   function buildDesk(desk: DeskSize) {
-    const key = `${desk.width}x${desk.depth}|${desk.material ?? "oak"}`;
+    const key = `${desk.width}x${desk.depth}|${desk.material ?? "oak"}|${desk.floor ?? ""}|${desk.window ? 1 : 0}|${desk.chair ?? ""}`;
     if (key === deskKey) return;
     deskKey = key;
     disposeTree(deskParts);
@@ -255,6 +317,14 @@ export function createDesk3D(
   fill.position.set(0, 80, 220);
   scene.add(hemi, sun, sun.target, fill);
 
+  /** 벽 색 = 고른 색 × 조명 분위기 (기본 벽 색에 대한 비율로 저녁은 따뜻하게, 밤은 어둡게) */
+  const DEFAULT_WALL = new THREE.Color(MOOD.day.wall);
+  function paintWall(desk: DeskSize, lighting: Lighting) {
+    const tint = new THREE.Color(MOOD[lighting].wall);
+    tint.setRGB(tint.r / DEFAULT_WALL.r, tint.g / DEFAULT_WALL.g, tint.b / DEFAULT_WALL.b);
+    wallMat.color.set(desk.wall ?? MOOD.day.wall).multiply(tint);
+  }
+
   function applyMood(lighting: Lighting, desk: DeskSize) {
     const m = MOOD[lighting];
     scene.background = new THREE.Color(m.bg);
@@ -267,7 +337,8 @@ export function createDesk3D(
     hemi.intensity = m.hemi[2];
     fill.color.set(m.hemi[0]);
     fill.intensity = m.fill;
-    wallMat.color.set(m.wall);
+    paintWall(desk, lighting);
+    windowMat.color.set(lighting === "day" ? "#eef4ff" : lighting === "evening" ? "#ffc596" : "#1a2236");
     floorMat.color.setScalar(m.floor);
     const span = Math.max(desk.width, desk.depth) / 2 + 60;
     sun.visible = !!m.sun;
@@ -292,7 +363,9 @@ export function createDesk3D(
     const tanV = Math.tan((camera.fov * Math.PI) / 360);
     const tanH = tanV * (camera.aspect || 1.5);
     const dist = Math.max((lastDesk.width * 0.56) / tanH, 62 / tanV);
-    camera.position.set(0, dist * 0.5, dist * 0.87);
+    // 의자가 있으면 등받이 너머로 책상이 보이게 조금 더 위에서 내려다봄
+    if (lastDesk.chair) camera.position.set(0, dist * 0.72, dist * 0.69);
+    else camera.position.set(0, dist * 0.5, dist * 0.87);
     controls.target.set(0, 10, -lastDesk.depth * 0.05);
     // 방 밖으로 너무 멀어지지 않게 (뒤로는 방 앞쪽 끝까지 정도)
     controls.maxDistance = Math.max(dist * 1.35, Math.min(dist * 2, roomDepth));
@@ -306,7 +379,8 @@ export function createDesk3D(
   const itemObjects = new Map<string, THREE.Object3D>();
 
   function buildItems(desk: DeskSize, items: DeskItem[], lighting: Lighting) {
-    const key = JSON.stringify([desk.width, desk.depth, lighting, items]);
+    // 사진·3D 모델 같은 큰 data URL은 내용 지문으로 바꿔 비교 (바뀔 때마다 수 MB를 문자열로 만들지 않게)
+    const key = JSON.stringify([desk.width, desk.depth, lighting, items], (_k, v) => (typeof v === "string" && v.length > 2048 ? imageKey(v) : v));
     if (key === itemsKey) return;
     itemsKey = key;
     disposeTree(itemsGroup);
@@ -329,6 +403,14 @@ export function createDesk3D(
           labelCache.set(k, m);
         }
         return m;
+      },
+      glb: (url, onReady) => {
+        void loadGlb(url).then((m) => {
+          if (m && !disposed && itemsKey === key) {
+            onReady(m);
+            dirty = true;
+          }
+        });
       },
       photo: (url, onReady) => {
         void loadPhoto(url).then((t) => {
@@ -627,7 +709,7 @@ export function createDesk3D(
   return {
     update({ desk, items, selectedId: sel }) {
       const first = !lastDesk;
-      const resized = lastDesk && (lastDesk.width !== desk.width || lastDesk.depth !== desk.depth);
+      const resized = lastDesk && (lastDesk.width !== desk.width || lastDesk.depth !== desk.depth || lastDesk.chair !== desk.chair); // 의자를 넣거나 빼도 시점을 다시 맞춤
       lastDesk = desk;
       const lighting = desk.lighting ?? "day";
       buildDesk(desk);
@@ -635,6 +717,7 @@ export function createDesk3D(
         moodKey = lighting;
         applyMood(lighting, desk);
       }
+      paintWall(desk, lighting); // 벽 색만 바뀐 경우
       currentItems = items;
       buildItems(desk, items, lighting);
       if (sel !== selectedId) {
@@ -660,7 +743,17 @@ export function createDesk3D(
       disposeTree(scene);
       for (const m of [...matCache.values(), ...labelCache.values(), screenMat, clockMat, artMat, calendarMat]) disposeMaterial(m, true);
       for (const p of photoCache.values()) void p.then((t) => t?.dispose());
-      floorTex.dispose();
+      for (const p of glbCache.values())
+        void p.then((m) =>
+          m?.traverse((o) => {
+            const mesh = o as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            mesh.geometry.dispose();
+            for (const x of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) disposeMaterial(x, true);
+          }),
+        );
+      for (const t of floorTexes.values()) t.dispose();
+      windowMat.dispose();
       envTex.dispose();
       pmrem.dispose();
       contactTex.dispose();
