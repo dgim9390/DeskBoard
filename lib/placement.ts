@@ -13,7 +13,16 @@ const ANCHORED: ProductKind[] = [...UNDERLAY, "wrist-rest", "light-bar", "monito
 /** 추천 제품을 책상에 놓을 때의 자연스러운 위치(cm). 원하는 자리가 차 있으면 가장 가까운 빈 자리로 */
 export function suggestPosition(kind: ProductKind, size: Size, items: DeskItem[], desk: DeskSize) {
   const preferred = preferredPosition(kind, size, items, desk);
-  return ANCHORED.includes(kind) ? preferred : nearestFreeSpot(preferred, size, items, desk);
+  if (ANCHORED.includes(kind)) return preferred;
+  const { x, y } = nearestFreeSpot(preferred, size, items, desk);
+  return { x, y };
+}
+
+/** 책상 위에 다른 장비를 가리지 않고 놓을 빈자리가 있는지 (받침·매트처럼 밑에 까는 것, 장비에 붙이는 것은 항상 있음) */
+export function fitsOnDesk(kind: ProductKind, size: Size, items: DeskItem[], desk: DeskSize) {
+  if (ANCHORED.includes(kind)) return true;
+  if (size.width > desk.width || size.height > desk.depth) return false;
+  return nearestFreeSpot({ x: 0, y: 0 }, size, items, desk).cost === 0;
 }
 
 /** 원하는 자리에서 가장 가까운 빈 자리. 완전히 빈 곳이 없으면 다른 제품을 가장 적게 가리는 자리 */
@@ -32,7 +41,7 @@ function nearestFreeSpot(pref: { x: number; y: number }, size: Size, items: Desk
   let best = { x: px, y: py };
   let bestCost = overlap(px, py);
   let bestD = 0;
-  if (bestCost === 0) return best;
+  if (bestCost === 0) return { ...best, cost: 0 };
   const STEP = 2;
   for (let x = 0; x <= desk.width - size.width; x += STEP)
     for (let y = 0; y <= desk.depth - size.height; y += STEP) {
@@ -44,7 +53,7 @@ function nearestFreeSpot(pref: { x: number; y: number }, size: Size, items: Desk
         bestD = d;
       }
     }
-  return best;
+  return { ...best, cost: bestCost };
 }
 
 function preferredPosition(kind: ProductKind, size: Size, items: DeskItem[], desk: DeskSize) {

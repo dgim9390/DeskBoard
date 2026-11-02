@@ -124,6 +124,16 @@ export interface DeskSize {
   chair?: ChairKind;
 }
 
+/** 추천 탭의 "내 용도": 용도·예산·선호 색 */
+export type Purpose = "dev" | "design" | "game" | "work" | "study";
+export type Budget = "low" | "mid" | "any";
+export type StylePref = "white" | "black" | "wood";
+export interface UserProfile {
+  purpose?: Purpose;
+  budget?: Budget;
+  style?: StylePref;
+}
+
 export type RoomStyle = Partial<Pick<DeskSize, "wall" | "floor" | "window" | "chair">>;
 
 export type NewDeskItem = Omit<DeskItem, "id" | "rotation"> & { rotation?: number };
@@ -197,6 +207,8 @@ interface DeskState {
   removeItem: (id: string) => void;
   clearDesk: () => void;
   customProducts: CustomProduct[];
+  profile: UserProfile;
+  setProfile: (p: UserProfile) => void;
   addCustomProduct: (p: Omit<CustomProduct, "id" | "createdAt">) => CustomProduct;
   removeCustomProduct: (id: string) => void;
   /** 되돌리기 / 다시하기 (기기에 저장하지 않음) */
@@ -512,6 +524,8 @@ export const useDeskStore = create<DeskState>()((set, get) => ({
   clearDesk: () => set({ deskItems: [] }),
 
   customProducts: [],
+  profile: {},
+  setProfile: (profile) => set({ profile }),
   addCustomProduct: (p) => {
     const product: CustomProduct = { ...p, id: makeId(), createdAt: Date.now() };
     set((s) => ({ customProducts: [product, ...s.customProducts] }));
@@ -653,7 +667,7 @@ function startAuth() {
 
 // ── 기기 저장 (앱을 다시 켜도 유지, 웹은 localStorage) ─────────────
 const STORAGE_KEY = "deskterior-store:v1";
-type Persisted = Pick<DeskState, "desk" | "deskItems" | "savedSetups" | "activeSetupId" | "customProducts">;
+type Persisted = Pick<DeskState, "desk" | "deskItems" | "savedSetups" | "activeSetupId" | "customProducts" | "profile">;
 
 // 사진(data:image)은 IndexedDB 보관함에 따로 두고 여기에는 참조만 저장 (localStorage 용량 약 5MB 대비)
 const useImageStore = Platform.OS === "web" && imageStoreAvailable();
@@ -715,6 +729,7 @@ AsyncStorage.getItem(STORAGE_KEY)
         savedSetups: saved.savedSetups ?? [],
         activeSetupId: saved.activeSetupId ?? null,
         customProducts: saved.customProducts ?? [],
+        profile: saved.profile ?? {},
       });
     }
   })
@@ -724,9 +739,9 @@ AsyncStorage.getItem(STORAGE_KEY)
     let last: unknown[] = [];
     const persist = (s: DeskState) => {
       // 로그인 중인 셋업은 계정에 있으므로 기기에는 로그아웃 상태의 셋업만 보관
-      const data: Persisted = { desk: s.desk, deskItems: s.deskItems, savedSetups: s.user ? [] : s.savedSetups, activeSetupId: s.activeSetupId, customProducts: s.customProducts };
+      const data: Persisted = { desk: s.desk, deskItems: s.deskItems, savedSetups: s.user ? [] : s.savedSetups, activeSetupId: s.activeSetupId, customProducts: s.customProducts, profile: s.profile };
       // 상태는 바뀔 때마다 새 객체이므로 참조 비교로 충분 (매번 JSON으로 비교하지 않음)
-      const parts = [data.desk, data.deskItems, data.savedSetups, data.activeSetupId, data.customProducts];
+      const parts = [data.desk, data.deskItems, data.savedSetups, data.activeSetupId, data.customProducts, data.profile];
       if (parts.every((p, i) => p === last[i])) return;
       last = parts;
       schedulePersist(data);

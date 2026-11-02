@@ -8,6 +8,7 @@ import { toast } from "@/lib/toast";
 import { FLOOR_MARGIN, useDeskStore, type Lighting } from "@/store/useDeskStore";
 import { CenterGuides, useGuideState } from "./CenterGuides";
 import { Desk3DView } from "./Desk3DView";
+import { ProductListModal } from "./ProductListModal";
 import { DeskSurface } from "./DeskSurface";
 import { DraggableItem } from "./DraggableItem";
 import { LIGHTING, LightingOverlay } from "./LightingOverlay";
@@ -59,6 +60,7 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [exporting, setExporting] = useState(false);
   const [view3d, setView3d] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   const rootRef = useRef<View>(null);
   const guides = useGuideState();
 
@@ -210,6 +212,7 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
             <ToolButton icon="arrow-redo" label="다시하기" onPress={redo} disabled={!canRedo} />
             <View className="mx-0.5 h-4 w-px bg-white/15" />
             <ToolButton icon="image-outline" label="이미지로 저장" onPress={saveImage} disabled={deskItems.length === 0} />
+            <ToolButton icon="list-outline" label="제품 목록" onPress={() => setListOpen(true)} disabled={deskItems.length === 0} />
             <ToolButton icon="trash-outline" label="책상 비우기" onPress={onRequestClear} disabled={deskItems.length === 0} danger />
           </View>
 
@@ -223,6 +226,7 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
           </View>
         </>
       )}
+      <ProductListModal visible={listOpen} items={deskItems} onClose={() => setListOpen(false)} />
     </View>
   );
 }

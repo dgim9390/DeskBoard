@@ -20,6 +20,11 @@ export function ProductCard({ product, placed, onPlace }: Props) {
         <View className="flex-1">
           <View className="mb-1 flex-row items-center justify-between">
             <View className="flex-row">
+              {product.forMe && (
+                <View className="mr-1 rounded-full bg-amber-500/20 px-2 py-0.5">
+                  <Text className="text-[11px] font-bold text-amber-300">내 용도 맞춤</Text>
+                </View>
+              )}
               {product.matched && (
                 <View className="mr-1 rounded-full bg-emerald-500/20 px-2 py-0.5">
                   <Text className="text-[11px] font-bold text-emerald-300">내 책상 맞춤</Text>
@@ -37,6 +42,7 @@ export function ProductCard({ product, placed, onPlace }: Props) {
       <View className="mt-3 flex-row items-center">
         <Text className="flex-1 text-xs text-zinc-500">
           크기 {product.width}×{product.height}cm
+          {!product.fits && <Text className="text-amber-400"> · 책상에 빈자리가 부족해요 (놓으면 다른 장비와 겹쳐요)</Text>}
         </Text>
         <Pressable
           onPress={() => onPlace(product)}
