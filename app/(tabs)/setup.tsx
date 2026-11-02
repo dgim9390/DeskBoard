@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SetupPreview } from "@/components/SetupPreview";
-import { CATEGORY_COLOR, CATEGORY_LABEL } from "@/data/catalog";
+import { TemplateGallery } from "@/components/TemplateGallery";
 import { confirm } from "@/lib/confirm";
 import { eulReul } from "@/lib/josa";
-import { defaultColor, sameLayout, useDeskStore, type SavedSetup } from "@/store/useDeskStore";
+import { sameLayout, useDeskStore, type SavedSetup } from "@/store/useDeskStore";
 
 const fmtDate = (t: number) => {
   const d = new Date(t);
@@ -14,8 +14,19 @@ const fmtDate = (t: number) => {
   return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-function Btn({ icon, label, onPress, tone = "default" }: { icon: React.ComponentProps<typeof Ionicons>["name"]; label: string; onPress: () => void; tone?: "primary" | "default" | "danger" }) {
-  const cls = tone === "primary" ? "bg-indigo-500 active:bg-indigo-600" : tone === "danger" ? "border border-zinc-700 active:bg-zinc-800" : "border border-zinc-700 active:bg-zinc-800";
+function Btn({
+  icon,
+  label,
+  onPress,
+  tone = "default",
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  onPress: () => void;
+  tone?: "primary" | "default" | "danger";
+}) {
+  const cls =
+    tone === "primary" ? "bg-indigo-500 active:bg-indigo-600" : tone === "danger" ? "border border-zinc-700 active:bg-zinc-800" : "border border-zinc-700 active:bg-zinc-800";
   const color = tone === "primary" ? "#fff" : tone === "danger" ? "#f87171" : "#d4d4d8";
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} className={`flex-row items-center rounded-lg px-3 py-2 ${cls}`}>
@@ -37,7 +48,7 @@ export default function SetupScreen() {
   const user = useDeskStore((s) => s.user);
   const cloudLoading = useDeskStore((s) => s.cloudLoading);
   const syncError = useDeskStore((s) => s.syncError);
-  const { removeItem, saveSetup, overwriteSetup, loadSetup, deleteSetup, renameSetup } = useDeskStore.getState();
+  const { saveSetup, overwriteSetup, loadSetup, deleteSetup, renameSetup } = useDeskStore.getState();
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
 
@@ -63,9 +74,7 @@ export default function SetupScreen() {
       <View className={`mb-3 flex-row items-center rounded-xl px-3 py-2.5 ${user ? "bg-emerald-500/10" : "bg-zinc-900"}`}>
         <Ionicons name={user ? "cloud-done-outline" : "phone-portrait-outline"} size={16} color={user ? "#6ee7b7" : "#a1a1aa"} />
         <Text className={`ml-2 flex-1 text-xs leading-4 ${user ? "text-emerald-300" : "text-zinc-400"}`}>
-          {user
-            ? `${user.email} 계정에 저장돼요. 다른 기기에서도 로그인하면 불러올 수 있어요.`
-            : "지금은 이 기기에만 저장돼요. 왼쪽 위에서 로그인하면 계정에 저장돼요."}
+          {user ? `${user.email} 계정에 저장돼요. 다른 기기에서도 로그인하면 불러올 수 있어요.` : "지금은 이 기기에만 저장돼요. 왼쪽 위에서 로그인하면 계정에 저장돼요."}
         </Text>
         {cloudLoading && <ActivityIndicator size="small" color="#6ee7b7" />}
       </View>
@@ -171,48 +180,28 @@ export default function SetupScreen() {
             </Text>
             <View className="mt-2 flex-row" style={{ gap: 8 }}>
               <Btn icon="open-outline" label="불러오기" tone="primary" onPress={() => onLoad(x)} />
-              <Btn
-                icon="refresh"
-                label="덮어쓰기"
-                onPress={() => confirm("덮어쓰기", `${eulReul(`'${x.name}'`)} 현재 배치로 바꿀까요?`, "덮어쓰기", () => overwriteSetup(x.id))}
-              />
+              <Btn icon="refresh" label="덮어쓰기" onPress={() => confirm("덮어쓰기", `${eulReul(`'${x.name}'`)} 현재 배치로 바꿀까요?`, "덮어쓰기", () => overwriteSetup(x.id))} />
               <View className="flex-1" />
-              <Btn icon="trash-outline" label="삭제" tone="danger" onPress={() => confirm("셋업 삭제", `${eulReul(`'${x.name}'`)} 삭제할까요?`, "삭제", () => deleteSetup(x.id), true)} />
+              <Btn
+                icon="trash-outline"
+                label="삭제"
+                tone="danger"
+                onPress={() => confirm("셋업 삭제", `${eulReul(`'${x.name}'`)} 삭제할까요?`, "삭제", () => deleteSetup(x.id), true)}
+              />
             </View>
           </View>
         );
       })}
 
-      <Text className="mb-2 mt-3 text-base font-bold text-zinc-100">현재 배치된 장비</Text>
+      <View className="mt-3">
+        <TemplateGallery />
+      </View>
     </View>
   );
 
   return (
     <View className="flex-1 bg-zinc-950">
-      <FlatList
-        data={deskItems}
-        keyExtractor={(i) => i.id}
-        contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 32 }}
-        ListHeaderComponent={header}
-        ListEmptyComponent={<Text className="py-10 text-center text-zinc-500">배치된 장비가 없어요.</Text>}
-        renderItem={({ item }) => (
-          <View className="flex-row items-center rounded-xl border border-zinc-800 bg-zinc-900 p-3">
-            <View className="mr-3 h-10 w-1.5 rounded-full" style={{ backgroundColor: CATEGORY_COLOR[item.category] }} />
-            <View className="flex-1">
-              <Text className="font-semibold text-zinc-100">
-                {item.name}
-                {item.mount ? ` + ${item.mount.name}` : ""}
-              </Text>
-              <Text className="text-xs text-zinc-500">
-                {CATEGORY_LABEL[item.category]} · {(item.color ?? defaultColor(item.kind)) === "white" ? "화이트" : "블랙"}
-              </Text>
-            </View>
-            <Pressable onPress={() => removeItem(item.id)} hitSlop={8}>
-              <Text className="text-sm text-red-400">삭제</Text>
-            </Pressable>
-          </View>
-        )}
-      />
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>{header}</ScrollView>
     </View>
   );
 }

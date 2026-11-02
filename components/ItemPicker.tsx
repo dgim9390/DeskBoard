@@ -27,12 +27,13 @@ const COL_CARD_W = 128; // 세로 패널에서 두 줄로 놓이는 카드 폭
 
 export function ItemPicker({ onPick, onPickCustom, onAddLink, onAddModel, onRemoveCustom, layout = "row", collapsed = false, onToggleCollapsed }: Props) {
   const customProducts = useDeskStore((s) => s.customProducts);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [picked, setFilter] = useState<Filter>("all");
+  const filter = picked === "mine" && !customProducts.length ? "all" : picked; // 내 제품을 다 지우면 전체로
   const visible = filter === "all" ? CATALOG : filter === "mine" ? [] : CATALOG.filter((e) => e.group === filter);
   const showCustom = filter === "all" || filter === "mine";
   const chips: { key: Filter; label: string }[] = [
     { key: "all", label: "전체" },
-    { key: "mine", label: `내 제품${customProducts.length ? ` ${customProducts.length}` : ""}` },
+    ...(customProducts.length ? [{ key: "mine" as Filter, label: `내 제품 ${customProducts.length}` }] : []),
     ...PICKER_GROUPS,
   ];
 
@@ -63,6 +64,31 @@ export function ItemPicker({ onPick, onPickCustom, onAddLink, onAddModel, onRemo
   const header = (
     <View className="mb-2 flex-row items-center px-1">
       <Text className="flex-1 text-sm font-semibold text-zinc-400">장비 추가</Text>
+      {!collapsed && (
+        <>
+          {/* 목록에 없는 제품: 링크·사진으로, 또는 3D 모델 파일로 */}
+          <Pressable
+            onPress={onAddLink}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="링크로 제품 추가"
+            className="mr-1 flex-row items-center rounded-lg border border-indigo-400/50 px-2 py-1 active:bg-indigo-500/15"
+          >
+            <Ionicons name="link" size={13} color="#a5b4fc" />
+            <Text className="ml-1 text-xs font-semibold text-indigo-200">링크</Text>
+          </Pressable>
+          <Pressable
+            onPress={onAddModel}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="3D 모델 파일로 제품 추가"
+            className="mr-1 flex-row items-center rounded-lg border border-indigo-400/50 px-2 py-1 active:bg-indigo-500/15"
+          >
+            <Ionicons name="cube-outline" size={13} color="#a5b4fc" />
+            <Text className="ml-1 text-xs font-semibold text-indigo-200">3D 파일</Text>
+          </Pressable>
+        </>
+      )}
       {onToggleCollapsed && (
         <Pressable
           onPress={onToggleCollapsed}
@@ -71,7 +97,6 @@ export function ItemPicker({ onPick, onPickCustom, onAddLink, onAddModel, onRemo
           accessibilityLabel={collapsed ? "장비 추가 펼치기" : "장비 추가 접기"}
           className="flex-row items-center rounded-lg px-2 py-1 active:bg-zinc-800"
         >
-          <Text className="mr-1 text-xs text-zinc-500">{collapsed ? "펼치기" : "접기"}</Text>
           <Ionicons name={column ? "chevron-forward" : collapsed ? "chevron-up" : "chevron-down"} size={14} color="#a1a1aa" />
         </Pressable>
       )}
@@ -101,35 +126,6 @@ export function ItemPicker({ onPick, onPickCustom, onAddLink, onAddModel, onRemo
     <>
       {showCustom && (
         <>
-          {/* 링크로 추가 */}
-          <Pressable
-            onPress={onAddLink}
-            accessibilityRole="button"
-            accessibilityLabel="링크로 제품 추가"
-            className={`${column ? "" : "w-28 "}items-center justify-center rounded-xl border border-dashed border-indigo-400/60 bg-indigo-500/5 p-2 active:bg-indigo-500/15`}
-            style={cardStyle}
-          >
-            <View className="h-16 w-full items-center justify-center">
-              <Ionicons name="link" size={26} color="#a5b4fc" />
-            </View>
-            <Text className="mt-1.5 text-xs font-semibold text-indigo-200">링크로 추가</Text>
-          </Pressable>
-
-          {/* 3D 모델 파일로 추가 */}
-          <Pressable
-            onPress={onAddModel}
-            accessibilityRole="button"
-            accessibilityLabel="3D 모델 파일로 제품 추가"
-            className={`${column ? "" : "w-28 "}items-center justify-center rounded-xl border border-dashed border-indigo-400/60 bg-indigo-500/5 p-2 active:bg-indigo-500/15`}
-            style={cardStyle}
-          >
-            <View className="h-16 w-full items-center justify-center">
-              <Ionicons name="cube-outline" size={26} color="#a5b4fc" />
-            </View>
-            <Text className="mt-1.5 text-xs font-semibold text-indigo-200">3D 모델로 추가</Text>
-            <Text className="text-[10px] text-zinc-500">.glb 파일</Text>
-          </Pressable>
-
           {customProducts.map((p) => (
             <Pressable key={p.id} onPress={() => onPickCustom(p)} accessibilityLabel={`${p.name} 추가`} className={card} style={cardStyle}>
               <View className="h-16 w-full items-center justify-center rounded-lg bg-[#b98e63]">
@@ -152,12 +148,6 @@ export function ItemPicker({ onPick, onPickCustom, onAddLink, onAddModel, onRemo
               </Pressable>
             </Pressable>
           ))}
-
-          {filter === "mine" && customProducts.length === 0 && (
-            <View className="justify-center px-2">
-              <Text className="text-xs leading-5 text-zinc-500">제조사 공식 홈페이지의 제품 링크를{"\n"}붙여 넣어 책상에 올려 보세요.</Text>
-            </View>
-          )}
         </>
       )}
 
@@ -190,7 +180,17 @@ export function ItemPicker({ onPick, onPickCustom, onAddLink, onAddModel, onRemo
         <View className="flex-row px-1 pb-2" style={{ flexWrap: "wrap", gap: 6 }}>
           {chipList}
         </View>
-        <ScrollView key={filter} showsVerticalScrollIndicator={false} contentContainerStyle={{ flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 4, paddingBottom: 8 }}>
+        <ScrollView
+          key={filter}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 8,
+            paddingHorizontal: 4,
+            paddingBottom: 8,
+          }}
+        >
           {cards}
         </ScrollView>
       </View>
@@ -202,7 +202,15 @@ export function ItemPicker({ onPick, onPickCustom, onAddLink, onAddModel, onRemo
       {header}
 
       {/* 카테고리 블록 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 4, paddingBottom: 8 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          gap: 6,
+          paddingHorizontal: 4,
+          paddingBottom: 8,
+        }}
+      >
         {chipList}
       </ScrollView>
 

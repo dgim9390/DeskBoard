@@ -31,11 +31,10 @@ export function AuthButton() {
         </>
       ) : (
         <>
+          {/* 회원가입은 로그인 창 안에서 전환 */}
           <Pressable onPress={() => setMode("login")} accessibilityRole="button" accessibilityLabel="로그인" hitSlop={6} className={`${pill} border border-zinc-700 active:bg-zinc-800`}>
-            <Text className="text-xs font-semibold text-zinc-200">로그인</Text>
-          </Pressable>
-          <Pressable onPress={() => setMode("signup")} accessibilityRole="button" accessibilityLabel="회원가입" hitSlop={6} className={`${pill} bg-zinc-800 active:bg-zinc-700`}>
-            <Text className="text-xs font-semibold text-zinc-200">회원가입</Text>
+            <Ionicons name="person-circle-outline" size={15} color="#d4d4d8" />
+            <Text className="ml-1 text-xs font-semibold text-zinc-200">로그인</Text>
           </Pressable>
         </>
       )}

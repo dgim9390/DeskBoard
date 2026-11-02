@@ -175,9 +175,9 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
                 <View pointerEvents="box-none" style={{ position: "absolute", left, top, width: dw, height: dd, alignItems: "center", justifyContent: "center" }}>
                   <View className="items-center rounded-2xl bg-black/55 px-5 py-4">
                     <Text className="text-sm font-semibold text-white">빈 책상이에요</Text>
-                    <Text className="mt-1 text-xs text-zinc-300">아래에서 장비를 추가하거나, 완성된 셋업으로 시작해 보세요</Text>
+                    <Text className="mt-1 text-xs text-zinc-300">장비를 추가하거나, 완성된 셋업으로 시작해 보세요</Text>
                     <Pressable
-                      onPress={() => router.navigate("/recommend")}
+                      onPress={() => router.navigate("/setup")}
                       accessibilityRole="button"
                       accessibilityLabel="추천 셋업으로 시작하기"
                       className="mt-3 flex-row items-center rounded-full bg-indigo-500 px-4 py-2 active:bg-indigo-600"

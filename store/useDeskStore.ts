@@ -124,14 +124,10 @@ export interface DeskSize {
   chair?: ChairKind;
 }
 
-/** 추천 탭의 "내 용도": 용도·예산·선호 색 */
+/** 제품 찾기 탭의 "내 용도" */
 export type Purpose = "dev" | "design" | "game" | "work" | "study";
-export type Budget = "low" | "mid" | "any";
-export type StylePref = "white" | "black" | "wood";
 export interface UserProfile {
   purpose?: Purpose;
-  budget?: Budget;
-  style?: StylePref;
 }
 
 export type RoomStyle = Partial<Pick<DeskSize, "wall" | "floor" | "window" | "chair">>;

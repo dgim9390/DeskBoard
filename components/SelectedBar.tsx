@@ -94,9 +94,18 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
   const uploadModel = async () => {
     const r = await pickModelFile();
     if (!r) return;
-    if (r.error || !r.url) return toast(r.error ?? "파일을 읽지 못했어요", { icon: "alert-circle-outline" });
+    if (r.error || !r.url)
+      return toast(r.error ?? "파일을 읽지 못했어요", {
+        icon: "alert-circle-outline",
+      });
     setPose({ modelUrl: r.url });
-    toast("3D 모델을 올렸어요. 3D 보기에서 확인해 보세요", { icon: "cube-outline", action: { label: "되돌리기", onPress: () => useDeskStore.getState().undo() } });
+    toast("3D 모델을 올렸어요. 3D 보기에서 확인해 보세요", {
+      icon: "cube-outline",
+      action: {
+        label: "되돌리기",
+        onPress: () => useDeskStore.getState().undo(),
+      },
+    });
   };
   const [cutting, setCutting] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
@@ -113,13 +122,15 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
   const color = item.color ?? defaultColor(item.kind);
 
   // 사진 제품의 3D 모양: 직접 고른 것, 아니면 이름으로 추정한 것(자동)
-  const autoModel = item.kind === "photo" ? guessModel(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`) ?? (item.category === "mouse" ? "mouse" : item.category === "keyboard" ? "keyboard" : null) : null;
+  const autoModel =
+    item.kind === "photo"
+      ? (guessModel(`${item.name} ${item.site ?? ""} ${item.link ?? ""}`) ?? (item.category === "mouse" ? "mouse" : item.category === "keyboard" ? "keyboard" : null))
+      : null;
   const modelLabel = (k: string | null | undefined) => MODEL_CHOICES.find((m) => m.kind === k)?.label;
   const modelText = item.model ? modelLabel(item.model) : autoModel ? `자동(${modelLabel(autoModel)})` : "사진 입체";
 
   // 예전에 넣은 사진(배경 있음)도 나중에 배경을 지울 수 있게
   const canCut = item.kind === "photo" && !!item.imageUrl && !isCutout(item.imageUrl);
-  const hasMore = isMonitor || item.kind === "photo" || canCut || !!item.link || !!item.modelUrl;
   const cutBackground = async () => {
     if (!item.imageUrl || cutting) return;
     setCutting(true);
@@ -127,117 +138,135 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
     setCutting(false);
     if (r.ok && r.dataUrl) {
       useDeskStore.getState().setItemImage(item.id, r.dataUrl);
-      toast("배경을 지웠어요", { icon: "cut-outline", action: { label: "되돌리기", onPress: () => useDeskStore.getState().undo() } });
-    } else toast(r.reason ?? "배경을 지우지 못했어요", { icon: "alert-circle-outline" });
+      toast("배경을 지웠어요", {
+        icon: "cut-outline",
+        action: {
+          label: "되돌리기",
+          onPress: () => useDeskStore.getState().undo(),
+        },
+      });
+    } else
+      toast(r.reason ?? "배경을 지우지 못했어요", {
+        icon: "alert-circle-outline",
+      });
   };
+
+  const iconBtn = (icon: React.ComponentProps<typeof Ionicons>["name"], label: string, onPress: () => void, cls: string, color = "white") => (
+    <Pressable onPress={onPress} hitSlop={6} accessibilityRole="button" accessibilityLabel={label} className={`ml-1.5 h-9 w-9 items-center justify-center rounded-lg ${cls}`}>
+      <Ionicons name={icon} size={18} color={color} />
+    </Pressable>
+  );
 
   return (
     <View className="mb-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2">
+      {/* 한 줄: 이름 · 색 · 회전 · 삭제 · 더보기 */}
       <View className="flex-row items-center">
         <View className="mr-2 flex-1">
           <Text className="text-sm font-semibold text-zinc-100" numberOfLines={1}>
             {item.name}
           </Text>
-          {item.mount && (
-            <Text className="text-[11px] text-indigo-300" numberOfLines={1}>
-              + {item.mount.name} 결합됨
-            </Text>
-          )}
-          {!item.mount && item.site && (
-            <Text className="text-[11px] text-zinc-500" numberOfLines={1}>
-              {item.site}
-            </Text>
-          )}
+          <Text className={`text-[11px] ${item.mount ? "text-indigo-300" : "text-zinc-500"}`} numberOfLines={1}>
+            {item.mount ? `+ ${item.mount.name} 결합됨` : `${item.width}×${item.height}cm${item.site ? ` · ${item.site}` : ""}`}
+          </Text>
         </View>
         {/* 사진으로 표시하는 제품은 색상 선택 없음 */}
-        {item.kind !== "photo" && COLORS.map((c) => (
-          <Pressable
-            key={c.value}
-            onPress={() => setItemColor(item.id, c.value)}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={`${c.label} 색상`}
-            accessibilityState={{ selected: color === c.value }}
-            className="ml-1.5 h-8 w-8 items-center justify-center rounded-full"
-            style={{ borderWidth: 2, borderColor: color === c.value ? "#818cf8" : "transparent" }}
-          >
-            <View className="h-5 w-5 rounded-full" style={{ backgroundColor: c.fill, borderWidth: 1, borderColor: "#52525b" }} />
-          </Pressable>
-        ))}
+        {item.kind !== "photo" &&
+          COLORS.map((c) => (
+            <Pressable
+              key={c.value}
+              onPress={() => setItemColor(item.id, c.value)}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`${c.label} 색상`}
+              accessibilityState={{ selected: color === c.value }}
+              className="ml-1 h-8 w-8 items-center justify-center rounded-full"
+              style={{
+                borderWidth: 2,
+                borderColor: color === c.value ? "#818cf8" : "transparent",
+              }}
+            >
+              <View
+                className="h-5 w-5 rounded-full"
+                style={{
+                  backgroundColor: c.fill,
+                  borderWidth: 1,
+                  borderColor: "#52525b",
+                }}
+              />
+            </Pressable>
+          ))}
+        {iconBtn("refresh", "90도 회전", () => updateItemRotation(item.id, item.rotation + 90), "bg-indigo-500/90 active:bg-indigo-600")}
+        {iconBtn("trash", "삭제", onDelete, "bg-red-500/90 active:bg-red-600")}
+        {iconBtn(
+          moreOpen ? "chevron-up" : "ellipsis-horizontal",
+          moreOpen ? "접기" : "더보기",
+          () => setMoreOpen((v) => !v),
+          `border border-zinc-700 ${moreOpen ? "bg-zinc-800" : "active:bg-zinc-800"}`,
+          "#d4d4d8",
+        )}
       </View>
 
-      <View className="mt-2 flex-row items-center">
-        <SizeFields
-          w={item.width}
-          h={item.height}
-          min={{ w: MIN_ITEM_CM, h: MIN_ITEM_CM }}
-          onChange={(w, h) => updateItemSize(item.id, w, h)}
-          resetKey={item.id}
-          // 사진·상자 제품은 3D 모양을 알 수 없어 높이를 직접 정할 수 있게
-          tall={item.kind === "photo" || item.kind === "generic" ? { value: item.tall, onChange: (v) => useDeskStore.getState().setItemTall(item.id, v) } : undefined}
-        />
-        <View className="flex-1" />
-        <Pressable
-          onPress={() => updateItemRotation(item.id, item.rotation + 90)}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="90도 회전"
-          className="h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/90 active:bg-indigo-600"
-        >
-          <Ionicons name="refresh" size={18} color="white" />
-        </Pressable>
-        <Pressable
-          onPress={onDelete}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="삭제"
-          className="ml-2 h-9 w-9 items-center justify-center rounded-lg bg-red-500/90 active:bg-red-600"
-        >
-          <Ionicons name="trash" size={18} color="white" />
-        </Pressable>
-      </View>
-
-      <View className="mt-2 flex-row items-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
-        <Chip icon="copy-outline" label="복제" onPress={onDuplicate} />
-        <Chip icon="arrow-down" label="뒤로" onPress={() => reorder(item.id, "backward")} disabled={!canBackward} />
-        <Chip icon="arrow-up" label="앞으로" onPress={() => reorder(item.id, "forward")} disabled={!canForward} />
-        {item.mount ? (
-          <Chip icon="unlink" label={`${item.mount.name} 분리`} onPress={() => detachMount(item.id)} />
-        ) : partner ? (
-          <Chip
-            icon="link"
-            label={`${partner.host.id === item.id ? partner.acc.name : partner.host.name}에 결합`}
-            onPress={() => onSelect(mountNearest(item.id))}
-          />
-        ) : null}
-        {hasMore && <Chip icon={moreOpen ? "chevron-up" : "ellipsis-horizontal"} label={moreOpen ? "접기" : isMonitor ? "모니터 조절 · 더보기" : "더보기"} onPress={() => setMoreOpen((v) => !v)} />}
-      </View>
-
-      {/* 자주 쓰지 않는 버튼은 더보기 안에 */}
-      {moreOpen && (item.kind === "photo" || canCut || item.link || item.modelUrl) && (
+      {/* 지금 할 수 있는 일만 바로 보이게: 결합 · 분리 · 내려놓기 */}
+      {(item.mount || partner || !!item.lift) && (
         <View className="mt-2 flex-row items-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
-          {item.kind === "photo" && <Chip icon="cube-outline" label={`3D: ${modelText}`} onPress={() => setModelOpen((v) => !v)} />}
-          {canCut && <Chip icon="cut-outline" label={cutting ? "지우는 중…" : "배경 지우기"} onPress={cutBackground} disabled={cutting} />}
-          {item.link && <Chip icon="open-outline" label="제품 페이지" onPress={() => Linking.openURL(item.link!)} />}
-          {item.modelUrl && <Chip icon="cube-outline" label="3D 모델 바꾸기" onPress={uploadModel} />}
-          {item.modelUrl && <Chip icon="close-circle-outline" label="3D 모델 지우기" onPress={() => setPose({ modelUrl: undefined })} />}
+          {item.mount ? (
+            <Chip icon="unlink" label={`${item.mount.name} 분리`} onPress={() => detachMount(item.id)} />
+          ) : partner ? (
+            <Chip icon="link" label={`${partner.host.id === item.id ? partner.acc.name : partner.host.name}에 결합`} onPress={() => onSelect(mountNearest(item.id))} />
+          ) : null}
+          {!!item.lift && <Chip icon="arrow-down-circle-outline" label={`내려놓기 (${item.lift}cm 띄움)`} onPress={() => setPose({ lift: undefined })} />}
         </View>
       )}
 
-      {moreOpen && isMonitor && (
-        <View className="mt-2 flex-row items-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
-          {item.kind === "monitor" && (
-            <Chip icon="phone-portrait-outline" label={item.pivot ? "가로로 돌리기" : "세로로 돌리기 (피벗)"} onPress={() => setPose({ pivot: !item.pivot || undefined })} />
+      {moreOpen && (
+        <View className="mt-2 border-t border-zinc-800 pt-2" style={{ rowGap: 8 }}>
+          <View className="flex-row items-center">
+            <Text className="mr-2 text-xs text-zinc-400">크기</Text>
+            <SizeFields
+              w={item.width}
+              h={item.height}
+              min={{ w: MIN_ITEM_CM, h: MIN_ITEM_CM }}
+              onChange={(w, h) => updateItemSize(item.id, w, h)}
+              resetKey={item.id}
+              // 사진·상자 제품은 3D 모양을 알 수 없어 높이를 직접 정할 수 있게
+              tall={
+                item.kind === "photo" || item.kind === "generic"
+                  ? {
+                      value: item.tall,
+                      onChange: (v) => useDeskStore.getState().setItemTall(item.id, v),
+                    }
+                  : undefined
+              }
+            />
+          </View>
+          <View className="flex-row items-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
+            <Chip icon="copy-outline" label="복제" onPress={onDuplicate} />
+            <Chip icon="arrow-down" label="뒤로" onPress={() => reorder(item.id, "backward")} disabled={!canBackward} />
+            <Chip icon="arrow-up" label="앞으로" onPress={() => reorder(item.id, "forward")} disabled={!canForward} />
+            {item.kind === "photo" && <Chip icon="cube-outline" label={`3D: ${modelText}`} onPress={() => setModelOpen((v) => !v)} />}
+            {canCut && <Chip icon="cut-outline" label={cutting ? "지우는 중…" : "배경 지우기"} onPress={cutBackground} disabled={cutting} />}
+            {item.link && <Chip icon="open-outline" label="제품 페이지" onPress={() => Linking.openURL(item.link!)} />}
+            {item.modelUrl && <Chip icon="cube-outline" label="3D 모델 바꾸기" onPress={uploadModel} />}
+            {item.modelUrl && <Chip icon="close-circle-outline" label="3D 모델 지우기" onPress={() => setPose({ modelUrl: undefined })} />}
+          </View>
+          {isMonitor && (
+            <View className="flex-row items-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
+              {item.kind === "monitor" && (
+                <Chip icon="phone-portrait-outline" label={item.pivot ? "가로로 돌리기" : "세로로 돌리기 (피벗)"} onPress={() => setPose({ pivot: !item.pivot || undefined })} />
+              )}
+              <Stepper label="틸트" value={item.tilt ?? 0} min={-15} max={35} onChange={(tilt) => setPose({ tilt: tilt || undefined })} />
+              <Stepper label="스위블" value={item.swivel ?? 0} min={-90} max={90} onChange={(swivel) => setPose({ swivel: swivel || undefined })} />
+              {/* 높이 조절: 받침대는 실제 높낮이 범위 정도, 모니터 암은 더 넓게 */}
+              <Stepper
+                label="높이"
+                unit="cm"
+                value={item.raise ?? 0}
+                min={0}
+                max={item.mount?.kind === "monitor-arm" ? 30 : 15}
+                onChange={(raise) => setPose({ raise: raise || undefined })}
+              />
+            </View>
           )}
-          <Stepper label="틸트" value={item.tilt ?? 0} min={-15} max={35} onChange={(tilt) => setPose({ tilt: tilt || undefined })} />
-          <Stepper label="스위블" value={item.swivel ?? 0} min={-90} max={90} onChange={(swivel) => setPose({ swivel: swivel || undefined })} />
-          {/* 높이 조절: 받침대는 실제 높낮이 범위 정도, 모니터 암은 더 넓게 */}
-          <Stepper label="높이" unit="cm" value={item.raise ?? 0} min={0} max={item.mount?.kind === "monitor-arm" ? 30 : 15} onChange={(raise) => setPose({ raise: raise || undefined })} />
-        </View>
-      )}
-      {!!item.lift && (
-        <View className="mt-2 flex-row items-center">
-          <Chip icon="arrow-down-circle-outline" label={`내려놓기 (${item.lift}cm 띄움)`} onPress={() => setPose({ lift: undefined })} />
         </View>
       )}
 

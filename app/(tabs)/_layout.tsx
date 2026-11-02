@@ -31,7 +31,7 @@ export default function TabsLayout() {
         // 오른쪽에 비우기·저장 버튼이 있어 제목은 숨김 (하단 탭에 이름 표시)
         options={{ ...tab("시뮬레이터", "grid-outline", "grid"), headerTitle: "" }}
       />
-      <Tabs.Screen name="recommend" options={tab("추천 기기", "sparkles-outline", "sparkles")} />
+      <Tabs.Screen name="recommend" options={tab("제품 찾기", "search-outline", "search")} />
       <Tabs.Screen name="setup" options={tab("내 셋업", "desktop-outline", "desktop")} />
     </Tabs>
   );
