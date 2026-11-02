@@ -72,6 +72,14 @@ export const REAL_PRODUCTS: RealProduct[] = [
   { id: "dell-u2723qe", cat: "monitor", brand: "Dell", name: "U2723QE", kind: "monitor", width: 61.1, depth: 18.5, price: 700000, tags: ["size:27", "res:4K", "hz:60", "panel:IPS"] },
   { id: "lg-32un650", cat: "monitor", brand: "LG", name: "32UN650", kind: "monitor", width: 71.4, depth: 22.7, price: 500000, tags: ["size:32", "res:4K", "hz:60", "panel:IPS"] },
   { id: "lg-34wq650", cat: "monitor", brand: "LG", name: "34WQ650 울트라와이드", kind: "ultrawide", width: 81.5, depth: 25.9, price: 450000, tags: ["size:34+", "res:FHD", "hz:60", "panel:IPS"] },
+  { id: "lg-27up550n", cat: "monitor", brand: "LG", name: "27UP550N", kind: "monitor", width: 62.3, depth: 23.9, price: 300000, tags: ["size:27", "res:4K", "hz:60", "panel:IPS"] },
+  { id: "lg-27qn600", cat: "monitor", brand: "LG", name: "27QN600", kind: "monitor", width: 61.4, depth: 20.9, price: 250000, tags: ["size:27", "res:QHD", "hz:60", "panel:IPS"] },
+  { id: "lg-24gn600", cat: "monitor", brand: "LG", name: "울트라기어 24GN600", kind: "monitor", width: 54.1, depth: 18.1, price: 200000, tags: ["size:24", "res:FHD", "hz:144", "panel:IPS"] },
+  { id: "lg-27gn800", cat: "monitor", brand: "LG", name: "울트라기어 27GN800", kind: "monitor", width: 61.4, depth: 22.5, price: 350000, tags: ["size:27", "res:QHD", "hz:144", "panel:IPS"] },
+  { id: "samsung-s24c310", cat: "monitor", brand: "삼성", name: "S24C310", kind: "monitor", width: 54, depth: 21.7, price: 130000, tags: ["size:24", "res:FHD", "hz:60", "panel:IPS"] },
+  { id: "dell-s3222dgm", cat: "monitor", brand: "Dell", name: "S3222DGM 커브드", kind: "monitor", width: 70.9, depth: 23.8, price: 400000, tags: ["size:32", "res:QHD", "hz:144", "panel:VA"] },
+  { id: "lg-32gn600", cat: "monitor", brand: "LG", name: "울트라기어 32GN600", kind: "monitor", width: 71.5, depth: 22.5, price: 350000, tags: ["size:32", "res:QHD", "hz:144", "panel:VA"] },
+  { id: "samsung-g5-34", cat: "monitor", brand: "삼성", name: "오디세이 G5 34 (C34G55T)", kind: "ultrawide", width: 80.7, depth: 27.3, price: 450000, tags: ["size:34+", "res:QHD", "hz:144", "panel:VA"] },
 
   // ── 키보드 ──
   { id: "logi-mx-keys-s", cat: "keyboard", brand: "로지텍", name: "MX Keys S", kind: "keyboard-full", width: 43, depth: 13.2, price: 150000, tags: ["layout:full", "conn:wireless", "switch:low"] },
@@ -79,6 +87,12 @@ export const REAL_PRODUCTS: RealProduct[] = [
   { id: "keychron-k8-pro", cat: "keyboard", brand: "키크론", name: "K8 Pro", kind: "keyboard", width: 35.8, depth: 13, price: 150000, tags: ["layout:tkl", "conn:wireless", "conn:wired", "switch:mech"] },
   { id: "keychron-q1-pro", cat: "keyboard", brand: "키크론", name: "Q1 Pro", kind: "keyboard", width: 32.8, depth: 14.5, price: 250000, tags: ["layout:compact", "conn:wireless", "conn:wired", "switch:mech"] },
   { id: "logi-g915-tkl", cat: "keyboard", brand: "로지텍", name: "G915 TKL", kind: "keyboard", width: 36.8, depth: 15, price: 250000, tags: ["layout:tkl", "conn:wireless", "switch:mech", "switch:low"] },
+  { id: "logi-k380", cat: "keyboard", brand: "로지텍", name: "K380 멀티 디바이스", kind: "keyboard", width: 27.95, depth: 12.4, price: 40000, tags: ["layout:compact", "conn:wireless", "switch:low"] },
+  { id: "logi-mx-keys-mini", cat: "keyboard", brand: "로지텍", name: "MX Keys Mini", kind: "keyboard", width: 29.6, depth: 13.2, price: 120000, tags: ["layout:compact", "conn:wireless", "switch:low"] },
+  { id: "apple-magic-kb-numeric", cat: "keyboard", brand: "Apple", name: "매직 키보드 (숫자 키패드)", kind: "keyboard-full", width: 41.9, depth: 11.5, price: 170000, color: "white", tags: ["layout:full", "conn:wireless", "switch:low"] },
+  { id: "keychron-k2-pro", cat: "keyboard", brand: "키크론", name: "K2 Pro", kind: "keyboard", width: 31.7, depth: 12.7, price: 150000, tags: ["layout:compact", "conn:wireless", "conn:wired", "switch:mech"] },
+  { id: "logi-g413-se", cat: "keyboard", brand: "로지텍", name: "G413 SE", kind: "keyboard-full", width: 43.5, depth: 12.7, price: 70000, tags: ["layout:full", "conn:wired", "switch:mech"] },
+  { id: "logi-pro-x-tkl", cat: "keyboard", brand: "로지텍", name: "PRO X TKL LIGHTSPEED", kind: "keyboard", width: 35.2, depth: 15, price: 250000, tags: ["layout:tkl", "conn:wireless", "switch:mech"] },
 
   // ── 마우스 ──
   { id: "logi-mx-master-3s", cat: "mouse", brand: "로지텍", name: "MX Master 3S", kind: "mouse", width: 8.4, depth: 12.5, price: 130000, tags: ["use:office", "conn:wireless", "shape:normal"] },
@@ -88,6 +102,10 @@ export const REAL_PRODUCTS: RealProduct[] = [
   { id: "logi-gpro-superlight2", cat: "mouse", brand: "로지텍", name: "G PRO X SUPERLIGHT 2", kind: "mouse", width: 6.35, depth: 12.5, price: 200000, tags: ["use:game", "conn:wireless", "shape:normal"] },
   { id: "razer-da-v3-pro", cat: "mouse", brand: "레이저", name: "DeathAdder V3 Pro", kind: "mouse", width: 6.8, depth: 12.8, price: 200000, tags: ["use:game", "conn:wireless", "shape:normal"] },
   { id: "logi-g102", cat: "mouse", brand: "로지텍", name: "G102", kind: "mouse", width: 6.2, depth: 11.7, price: 25000, tags: ["use:game", "conn:wired", "shape:normal"] },
+  { id: "logi-g304", cat: "mouse", brand: "로지텍", name: "G304 LIGHTSPEED", kind: "mouse", width: 6.2, depth: 11.7, price: 40000, tags: ["use:game", "conn:wireless", "shape:normal"] },
+  { id: "logi-g502x", cat: "mouse", brand: "로지텍", name: "G502 X", kind: "mouse", width: 7.9, depth: 13.1, price: 100000, tags: ["use:game", "conn:wired", "shape:normal"] },
+  { id: "logi-m650", cat: "mouse", brand: "로지텍", name: "Signature M650", kind: "mouse", width: 6.1, depth: 10.8, price: 40000, tags: ["use:office", "conn:wireless", "shape:normal"] },
+  { id: "logi-mx-vertical", cat: "mouse", brand: "로지텍", name: "MX Vertical", kind: "mouse-vertical", width: 7.9, depth: 12, tall: 7.85, price: 130000, tags: ["use:office", "conn:wireless", "shape:vertical"] },
 
   // ── 스피커 ──
   { id: "edifier-r1280t", cat: "speaker", brand: "에디파이어", name: "R1280T (한 쌍 중 1개)", kind: "speaker", width: 14.6, depth: 19.6, tall: 23.4, price: 130000, tags: ["type:bookshelf"] },

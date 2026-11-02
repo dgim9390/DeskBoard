@@ -3,7 +3,7 @@ import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { FINDER_CATEGORY, FINDER_FILTERS, REAL_PRODUCTS, type FinderCategory, type RealProduct } from "@/data/products";
-import { findProducts, PRICE_BANDS, tagLabel } from "@/lib/finder";
+import { findProducts, PRICE_BANDS, relaxations, tagLabel } from "@/lib/finder";
 import { fitsOnDesk, suggestPosition } from "@/lib/placement";
 import { useDeskStore } from "@/store/useDeskStore";
 import { buyUrl } from "./ProductListModal";
@@ -39,10 +39,14 @@ export function ProductFinder() {
 
   const filters = FINDER_FILTERS[cat];
   const allBrands = useMemo(() => [...new Set(REAL_PRODUCTS.filter((p) => p.cat === cat).map((p) => p.brand))], [cat]);
-  const results = useMemo(() => {
-    const found = findProducts({ cat, rows: filters.map((_, i) => rows[i] ?? []), prices, brands });
-    return found.map((p) => ({ p, fits: fitsOnDesk(p.kind, { width: p.width, height: p.depth }, deskItems, desk) })).filter((r) => !onlyFits || r.fits);
-  }, [cat, filters, rows, prices, brands, onlyFits, deskItems, desk]);
+  const query = useMemo(() => ({ cat, rows: filters.map((_, i) => rows[i] ?? []), prices, brands }), [cat, filters, rows, prices, brands]);
+  const found = useMemo(
+    () => findProducts(query).map((p) => ({ p, fits: fitsOnDesk(p.kind, { width: p.width, height: p.depth }, deskItems, desk) })),
+    [query, deskItems, desk],
+  );
+  const results = onlyFits ? found.filter((r) => r.fits) : found;
+  // 결과가 없으면: 어떤 조건을 빼면 제품이 나오는지
+  const relax = useMemo(() => (results.length ? [] : relaxations(query)), [results.length, query]);
 
   const pickCat = (c: FinderCategory) => {
     setCat(c);
@@ -98,7 +102,20 @@ export function ProductFinder() {
         {FINDER_CATEGORY[cat].label} {results.length}개
       </Text>
       <Text className="mb-2 px-1 text-[11px] text-zinc-500">가격은 대략적인 가격대예요. 사양과 가격은 구매 전에 판매처에서 확인하세요.</Text>
-      {results.length === 0 && <Text className="py-10 text-center text-sm text-zinc-500">조건에 맞는 제품이 없어요. 조건을 줄여 보세요.</Text>}
+      {results.length === 0 && (
+        <View className="items-center py-8">
+          <Text className="text-sm text-zinc-400">조건에 딱 맞는 제품이 없어요</Text>
+          {(relax.length > 0 || (onlyFits && found.length > 0)) && <Text className="mt-1 text-xs text-zinc-500">이 조건을 빼면 이런 제품이 있어요</Text>}
+          <View className="mt-3 flex-row justify-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
+            {onlyFits && found.length > 0 && <Chip label={`'내 책상에 들어가는 것만' 끄기 · ${found.length}개`} on={false} onPress={() => setOnlyFits(false)} />}
+            {relax.map((r) => {
+              const label = r.kind === "row" ? filters[r.index].label : r.kind === "price" ? "가격" : "브랜드";
+              const clear = () => (r.kind === "row" ? setRows((x) => x.map((t, i) => (i === r.index ? [] : t))) : r.kind === "price" ? setPrices([]) : setBrands([]));
+              return <Chip key={`${r.kind}-${label}`} label={`${label} 조건 빼기 · ${r.count}개`} on={false} onPress={clear} />;
+            })}
+          </View>
+        </View>
+      )}
       <View style={{ gap: 10 }}>
         {results.map(({ p, fits }) => {
           const specs = p.tags.map((t) => tagLabel(p.cat, t)).filter(Boolean).join(" · ");

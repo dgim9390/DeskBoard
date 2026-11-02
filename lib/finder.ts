@@ -31,3 +31,23 @@ export function tagLabel(cat: FinderCategory, tag: string) {
   for (const row of FINDER_FILTERS[cat]) for (const o of row.options) if (o.tag === tag) return o.label;
   return null;
 }
+
+/** 결과가 없을 때: 고른 조건을 하나씩 빼 보고, 빼면 제품이 나오는 조건과 그때 개수 (많은 순) */
+export type Relax = { kind: "row"; index: number; count: number } | { kind: "price"; count: number } | { kind: "brand"; count: number };
+export function relaxations(q: FinderQuery, all: RealProduct[] = REAL_PRODUCTS): Relax[] {
+  const out: Relax[] = [];
+  q.rows.forEach((tags, index) => {
+    if (!tags.length) return;
+    const count = findProducts({ ...q, rows: q.rows.map((t, i) => (i === index ? [] : t)) }, all).length;
+    if (count) out.push({ kind: "row", index, count });
+  });
+  if (q.prices.length) {
+    const count = findProducts({ ...q, prices: [] }, all).length;
+    if (count) out.push({ kind: "price", count });
+  }
+  if (q.brands.length) {
+    const count = findProducts({ ...q, brands: [] }, all).length;
+    if (count) out.push({ kind: "brand", count });
+  }
+  return out.sort((a, b) => b.count - a.count);
+}
