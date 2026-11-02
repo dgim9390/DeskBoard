@@ -19,12 +19,14 @@ interface Props {
   originY: number;
   deskWidthPx: number;
   deskHeightPx: number;
+  /** 책상 밖에 놓을 수 있는 바닥 폭(px) */
+  marginPx: number;
   selected: boolean;
   onSelect: (id: string | null) => void;
   guides: GuideState;
 }
 
-export function DraggableItem({ item, scale, originX, originY, deskWidthPx, deskHeightPx, selected, onSelect, guides }: Props) {
+export function DraggableItem({ item, scale, originX, originY, deskWidthPx, deskHeightPx, marginPx, selected, onSelect, guides }: Props) {
   const updateItemTransform = useDeskStore((s) => s.updateItemTransform);
   const removeItem = useDeskStore((s) => s.removeItem);
 
@@ -62,11 +64,16 @@ export function DraggableItem({ item, scale, originX, originY, deskWidthPx, desk
       runOnJS(onSelect)(item.id);
     })
     .onUpdate((e) => {
-      const p = clampInto(startX.value + e.translationX, startY.value + e.translationY, w.value, h.value, rot.value, deskWidthPx, deskHeightPx);
+      // 책상 밖 바닥(양옆·앞 marginPx)까지 끌 수 있음
+      const into = (px: number, py: number) => {
+        const c = clampInto(px + marginPx, py, w.value, h.value, rot.value, deskWidthPx + marginPx * 2, deskHeightPx + marginPx);
+        return { x: c.x - marginPx, y: c.y };
+      };
+      const p = into(startX.value + e.translationX, startY.value + e.translationY);
       // 제품 중심이 책상 중앙선 가까이 오면 중앙에 스냅
       const snapX = Math.abs(p.x + w.value / 2 - deskWidthPx / 2) < SNAP_PX;
       const snapY = Math.abs(p.y + h.value / 2 - deskHeightPx / 2) < SNAP_PX;
-      const s = clampInto(snapX ? deskWidthPx / 2 - w.value / 2 : p.x, snapY ? deskHeightPx / 2 - h.value / 2 : p.y, w.value, h.value, rot.value, deskWidthPx, deskHeightPx);
+      const s = into(snapX ? deskWidthPx / 2 - w.value / 2 : p.x, snapY ? deskHeightPx / 2 - h.value / 2 : p.y);
       guides.snapX.value = snapX ? 1 : 0;
       guides.snapY.value = snapY ? 1 : 0;
       x.value = s.x;

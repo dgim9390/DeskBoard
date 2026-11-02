@@ -320,6 +320,9 @@ const overlaps = (a: DeskItem, b: DeskItem) => centerIn(a, b) || centerIn(b, a);
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi));
 
 /** 아이템을 책상 범위 안으로 보정 (회전 고려) */
+/** 책상 밖에 둘 수 있는 바닥 폭(cm): 양옆과 앞쪽. 뒤는 벽 */
+export const FLOOR_MARGIN = 35;
+
 const fit = (i: DeskItem, desk: DeskSize): DeskItem => {
   const rotation = normalizeDeg(i.rotation);
   const quarter = Math.abs(rotation) % 180;
@@ -330,8 +333,9 @@ const fit = (i: DeskItem, desk: DeskSize): DeskItem => {
   const maxH = straight ? desk.depth : sideways ? desk.width : maxDim;
   const width = clamp(i.width, MIN_ITEM_CM, maxW);
   const height = clamp(i.height, MIN_ITEM_CM, maxH);
-  const p = clampInto(i.x, i.y, width, height, rotation, desk.width, desk.depth);
-  return { ...i, rotation, width, height, x: p.x, y: p.y };
+  // 책상 밖(양옆·앞 바닥)까지 놓을 수 있게: 영역을 왼쪽으로 FLOOR_MARGIN만큼 넓혀 맞춘 뒤 되돌림
+  const p = clampInto(i.x + FLOOR_MARGIN, i.y, width, height, rotation, desk.width + FLOOR_MARGIN * 2, desk.depth + FLOOR_MARGIN);
+  return { ...i, rotation, width, height, x: p.x - FLOOR_MARGIN, y: p.y };
 };
 
 const UNDERLAY_KINDS: ProductKind[] = ["desk-mat", "mouse-pad", "monitor-riser", "speaker-stand", "desk-shelf"];

@@ -7,11 +7,13 @@ import { DeskCanvas } from "@/components/DeskCanvas";
 import { AddProductModal } from "@/components/AddProductModal";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { ItemPicker } from "@/components/ItemPicker";
+import { HelpModal } from "@/components/HelpModal";
 import { SaveSetupModal } from "@/components/SaveSetupModal";
 import { SelectedBar } from "@/components/SelectedBar";
 import type { CATALOG } from "@/data/catalog";
 import { eulReul } from "@/lib/josa";
 import { suggestPosition } from "@/lib/placement";
+import { measureModel, pickModelFile } from "@/lib/modelFile";
 import { toast } from "@/lib/toast";
 import { useDeskStore, type CustomProduct } from "@/store/useDeskStore";
 
@@ -49,6 +51,7 @@ export default function SimulatorScreen() {
   const [clearOpen, setClearOpen] = useState(false);
   const navigation = useNavigation();
   const [saveOpen, setSaveOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
 
   // 오른쪽 상단 저장 버튼
@@ -56,6 +59,15 @@ export default function SimulatorScreen() {
     navigation.setOptions({
       headerRight: () => (
         <View className="mr-4 flex-row items-center" style={{ gap: 8 }}>
+          <Pressable
+            onPress={() => setHelpOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="사용법"
+            hitSlop={8}
+            className="h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 active:bg-zinc-800"
+          >
+            <Ionicons name="help" size={16} color="#d4d4d8" />
+          </Pressable>
           <Pressable
           onPress={() => setSaveOpen(true)}
           accessibilityRole="button"
@@ -163,6 +175,18 @@ export default function SimulatorScreen() {
   const [linkOpen, setLinkOpen] = useState(false);
   const [removing, setRemoving] = useState<CustomProduct | null>(null);
 
+  // 3D 모델 파일(.glb)로 추가: 파일의 실제 크기로 책상에 놓음 (크기를 못 읽으면 20cm 상자로 놓고 고치게)
+  const addModel = useCallback(async () => {
+    const r = await pickModelFile();
+    if (!r) return;
+    if (r.error || !r.url) return toast(r.error ?? "파일을 읽지 못했어요", { icon: "alert-circle-outline" });
+    const size = await measureModel(r.url);
+    const p = { name: r.name || "3D 모델", category: "accessory" as const, kind: "generic" as const, width: size?.width ?? 20, height: size?.depth ?? 20, tall: size?.tall, price: 0 };
+    const { desk, deskItems } = useDeskStore.getState();
+    setSelectedId(addDeskItem({ ...p, modelUrl: r.url, ...suggestPosition(p.kind, p, deskItems, desk) }));
+    toast(size ? "3D 모델을 놓았어요. 3D 보기에서 확인해 보세요" : "크기를 읽지 못해 20cm로 놓았어요. 아래에서 실제 크기로 고쳐 주세요", { icon: "cube-outline" });
+  }, [addDeskItem]);
+
   const placeCustom = useCallback(
     (p: Omit<CustomProduct, "id" | "createdAt">) => {
       const { desk, deskItems } = useDeskStore.getState();
@@ -200,6 +224,7 @@ export default function SimulatorScreen() {
       onPick={handlePick}
       onPickCustom={placeCustom}
       onAddLink={() => setLinkOpen(true)}
+      onAddModel={addModel}
       onRemoveCustom={setRemoving}
     />
   );
@@ -262,6 +287,7 @@ export default function SimulatorScreen() {
         }}
       />
 
+      <HelpModal visible={helpOpen} onClose={() => setHelpOpen(false)} />
       <SaveSetupModal
         visible={saveOpen}
         defaultName={`셋업 ${savedCount + 1}`}

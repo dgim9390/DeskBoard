@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Svg, { Defs, RadialGradient, Rect, Stop } from "react-native-svg";
 import { exportNodeAsPng } from "@/lib/exportImage";
 import { toast } from "@/lib/toast";
-import { useDeskStore, type Lighting } from "@/store/useDeskStore";
+import { FLOOR_MARGIN, useDeskStore, type Lighting } from "@/store/useDeskStore";
 import { CenterGuides, useGuideState } from "./CenterGuides";
 import { Desk3DView } from "./Desk3DView";
 import { DeskSurface } from "./DeskSurface";
@@ -64,12 +64,15 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
 
   const onLayout = (e: LayoutChangeEvent) => setSize(e.nativeEvent.layout);
 
-  // 책상 전체가 화면에 들어오도록 cm → px 축척 계산
-  const scale = size.width > 0 ? Math.max(0.1, Math.min((size.width - PAD * 2) / desk.width, (size.height - PAD_TOP - PAD) / desk.depth)) : 0;
+  // 책상과 둘레 바닥(양옆·앞 FLOOR_MARGIN)이 화면에 들어오도록 cm → px 축척 계산
+  const fullW = desk.width + FLOOR_MARGIN * 2;
+  const fullD = desk.depth + FLOOR_MARGIN;
+  const scale = size.width > 0 ? Math.max(0.1, Math.min((size.width - PAD * 2) / fullW, (size.height - PAD_TOP - PAD) / fullD)) : 0;
   const dw = desk.width * scale;
   const dd = desk.depth * scale;
+  const mp = FLOOR_MARGIN * scale;
   const left = (size.width - dw) / 2;
-  const top = PAD_TOP + (size.height - PAD_TOP - PAD - dd) / 2;
+  const top = PAD_TOP + (size.height - PAD_TOP - PAD - fullD * scale) / 2;
   const room = LIGHTING[lighting].room;
 
   const saveImage = async () => {
@@ -122,6 +125,12 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
                 {desk.depth} cm
               </Text>
 
+              {/* 책상 둘레 바닥: 제품을 둘 수 있는 곳 (점선) */}
+              <View
+                pointerEvents="none"
+                style={{ position: "absolute", left: left - mp, top, width: dw + mp * 2, height: dd + mp, borderWidth: 1, borderStyle: "dashed", borderColor: "rgba(255,255,255,0.08)", borderTopWidth: 0, borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }}
+              />
+
               {/* 책상 상판 (좌표계 원점 = 책상 좌상단) */}
               <View style={{ position: "absolute", left, top, width: dw, height: dd }}>
                 {/* 책상이 바닥에서 살짝 떠 보이는 그림자 (겹친 반투명 판으로 부드럽게) */}
@@ -147,6 +156,7 @@ export function DeskCanvas({ selectedId, onSelect, onRequestClear }: Props) {
                     originY={top}
                     deskWidthPx={dw}
                     deskHeightPx={dd}
+                    marginPx={mp}
                     selected={selectedId === item.id}
                     onSelect={onSelect}
                     guides={guides}

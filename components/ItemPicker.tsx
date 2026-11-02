@@ -13,6 +13,8 @@ interface Props {
   onPickCustom: (p: CustomProduct) => void;
   /** 링크로 제품 추가 창 열기 */
   onAddLink: () => void;
+  /** 3D 모델 파일(.glb)로 제품 추가 */
+  onAddModel: () => void;
   /** "내 제품"에서 삭제 (확인은 부모가) */
   onRemoveCustom: (p: CustomProduct) => void;
   /** row: 화면 아래 가로 목록, column: 오른쪽 세로 패널 */
@@ -23,7 +25,7 @@ interface Props {
 
 const COL_CARD_W = 128; // 세로 패널에서 두 줄로 놓이는 카드 폭
 
-export function ItemPicker({ onPick, onPickCustom, onAddLink, onRemoveCustom, layout = "row", collapsed = false, onToggleCollapsed }: Props) {
+export function ItemPicker({ onPick, onPickCustom, onAddLink, onAddModel, onRemoveCustom, layout = "row", collapsed = false, onToggleCollapsed }: Props) {
   const customProducts = useDeskStore((s) => s.customProducts);
   const [filter, setFilter] = useState<Filter>("all");
   const visible = filter === "all" ? CATALOG : filter === "mine" ? [] : CATALOG.filter((e) => e.group === filter);
@@ -111,6 +113,21 @@ export function ItemPicker({ onPick, onPickCustom, onAddLink, onRemoveCustom, la
               <Ionicons name="link" size={26} color="#a5b4fc" />
             </View>
             <Text className="mt-1.5 text-xs font-semibold text-indigo-200">링크로 추가</Text>
+          </Pressable>
+
+          {/* 3D 모델 파일로 추가 */}
+          <Pressable
+            onPress={onAddModel}
+            accessibilityRole="button"
+            accessibilityLabel="3D 모델 파일로 제품 추가"
+            className={`${column ? "" : "w-28 "}items-center justify-center rounded-xl border border-dashed border-indigo-400/60 bg-indigo-500/5 p-2 active:bg-indigo-500/15`}
+            style={cardStyle}
+          >
+            <View className="h-16 w-full items-center justify-center">
+              <Ionicons name="cube-outline" size={26} color="#a5b4fc" />
+            </View>
+            <Text className="mt-1.5 text-xs font-semibold text-indigo-200">3D 모델로 추가</Text>
+            <Text className="text-[10px] text-zinc-500">.glb 파일</Text>
           </Pressable>
 
           {customProducts.map((p) => (

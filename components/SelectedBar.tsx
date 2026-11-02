@@ -89,6 +89,7 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
   const mountNearest = useDeskStore((s) => s.mountNearest);
   const reorder = useDeskStore((s) => s.reorder);
   const setPose = (pose: ItemPose) => useDeskStore.getState().setItemPose(item.id, pose);
+  const isMonitor = item.kind === "monitor" || item.kind === "ultrawide";
   // 3D 모델 파일(.glb)을 올리면 3D 보기에서 이 제품 자리에 그 모양으로 보임
   const uploadModel = async () => {
     const r = await pickModelFile();
@@ -99,7 +100,12 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
   };
   const [cutting, setCutting] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
-  useEffect(() => setModelOpen(false), [item.id]); // 다른 제품을 고르면 목록 닫기
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    // 다른 제품을 고르면 목록·더보기 닫기
+    setModelOpen(false);
+    setMoreOpen(false);
+  }, [item.id]);
   const deskItems = useDeskStore((s) => s.deskItems);
   const partner = findPartner(deskItems, item);
   const canForward = reorderTarget(deskItems, item.id, "forward") >= 0;
@@ -113,6 +119,7 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
 
   // 예전에 넣은 사진(배경 있음)도 나중에 배경을 지울 수 있게
   const canCut = item.kind === "photo" && !!item.imageUrl && !isCutout(item.imageUrl);
+  const hasMore = isMonitor || item.kind === "photo" || canCut || !!item.link || !!item.modelUrl;
   const cutBackground = async () => {
     if (!item.imageUrl || cutting) return;
     setCutting(true);
@@ -203,14 +210,21 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
             onPress={() => onSelect(mountNearest(item.id))}
           />
         ) : null}
-        {item.kind === "photo" && <Chip icon="cube-outline" label={`3D: ${modelText}`} onPress={() => setModelOpen((v) => !v)} />}
-        {canCut && <Chip icon="cut-outline" label={cutting ? "지우는 중…" : "배경 지우기"} onPress={cutBackground} disabled={cutting} />}
-        {item.link && <Chip icon="open-outline" label="제품 페이지" onPress={() => Linking.openURL(item.link!)} />}
-        <Chip icon="cube-outline" label={item.modelUrl ? "3D 모델 바꾸기" : "3D 모델 올리기"} onPress={uploadModel} />
-        {item.modelUrl && <Chip icon="close-circle-outline" label="3D 모델 지우기" onPress={() => setPose({ modelUrl: undefined })} />}
+        {hasMore && <Chip icon={moreOpen ? "chevron-up" : "ellipsis-horizontal"} label={moreOpen ? "접기" : isMonitor ? "모니터 조절 · 더보기" : "더보기"} onPress={() => setMoreOpen((v) => !v)} />}
       </View>
 
-      {(item.kind === "monitor" || item.kind === "ultrawide") && (
+      {/* 자주 쓰지 않는 버튼은 더보기 안에 */}
+      {moreOpen && (item.kind === "photo" || canCut || item.link || item.modelUrl) && (
+        <View className="mt-2 flex-row items-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
+          {item.kind === "photo" && <Chip icon="cube-outline" label={`3D: ${modelText}`} onPress={() => setModelOpen((v) => !v)} />}
+          {canCut && <Chip icon="cut-outline" label={cutting ? "지우는 중…" : "배경 지우기"} onPress={cutBackground} disabled={cutting} />}
+          {item.link && <Chip icon="open-outline" label="제품 페이지" onPress={() => Linking.openURL(item.link!)} />}
+          {item.modelUrl && <Chip icon="cube-outline" label="3D 모델 바꾸기" onPress={uploadModel} />}
+          {item.modelUrl && <Chip icon="close-circle-outline" label="3D 모델 지우기" onPress={() => setPose({ modelUrl: undefined })} />}
+        </View>
+      )}
+
+      {moreOpen && isMonitor && (
         <View className="mt-2 flex-row items-center" style={{ flexWrap: "wrap", rowGap: 6 }}>
           {item.kind === "monitor" && (
             <Chip icon="phone-portrait-outline" label={item.pivot ? "가로로 돌리기" : "세로로 돌리기 (피벗)"} onPress={() => setPose({ pivot: !item.pivot || undefined })} />
@@ -227,7 +241,7 @@ export function SelectedBar({ item, onDelete, onDuplicate, onSelect }: Props) {
         </View>
       )}
 
-      {modelOpen && item.kind === "photo" && (
+      {moreOpen && modelOpen && item.kind === "photo" && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: 8 }}>
           {[{ kind: undefined, label: "자동" }, ...MODEL_CHOICES].map((m) => {
             const on = item.model === m.kind;

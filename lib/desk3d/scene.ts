@@ -4,7 +4,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { imageKey } from "@/lib/imageStore";
 import { imageProxyUrl } from "@/lib/productLink";
-import type { DeskItem, DeskMaterial, DeskSize, FloorKind, Lighting } from "@/store/useDeskStore";
+import { FLOOR_MARGIN, type DeskItem, type DeskMaterial, type DeskSize, type FloorKind, type Lighting } from "@/store/useDeskStore";
 import { buildItem, chairModel, hookTop, isHeadphones, monitorTop, supportTop, type MatOpts, type ModelCtx } from "./models";
 import { artTexture, calendarTexture, clockTexture, deskTexture, floorTexture, labelTexture, screenOffTexture } from "./textures";
 
@@ -443,7 +443,12 @@ export function createDesk3D(
     // 모니터 암은 책상 가장자리에 클램프로 고정하므로 받침대·선반이 겹쳐 있어도 책상 위에 섬
     const clampsToDesk = (i: DeskItem) => i.kind === "monitor-arm" || i.mount?.kind === "monitor-arm";
     // 놓인 높이 + 3D에서 띄운 높이 (클램프 고정 장비는 띄우지 않음)
-    const baseOf = (i: DeskItem) => (clampsToDesk(i) ? 0 : (supportBase.get(i.id) ?? restOn(i, supports)) + liftOf(i));
+    // 가운데가 책상 밖(둘레 바닥)이면 바닥에 놓음
+    const onFloor = (i: DeskItem) => {
+      const c = center(i, desk);
+      return Math.abs(c.x) > desk.width / 2 || Math.abs(c.z) > desk.depth / 2;
+    };
+    const baseOf = (i: DeskItem) => (clampsToDesk(i) ? 0 : onFloor(i) ? -DESK_H + liftOf(i) : (supportBase.get(i.id) ?? restOn(i, supports)) + liftOf(i));
     const monitors = items.filter((i) => i.kind === "monitor" || i.kind === "ultrawide");
     const stands = items.filter((i) => hookTop(i) !== undefined);
 
@@ -574,8 +579,8 @@ export function createDesk3D(
       if (!p) return;
       p.add(drag.offset);
       // 가운데가 책상 밖으로 나가지 않게 (정확한 맞춤은 저장할 때 스토어가 함)
-      p.x = THREE.MathUtils.clamp(p.x, -lastDesk.width / 2, lastDesk.width / 2);
-      p.z = THREE.MathUtils.clamp(p.z, -lastDesk.depth / 2, lastDesk.depth / 2);
+      p.x = THREE.MathUtils.clamp(p.x, -lastDesk.width / 2 - FLOOR_MARGIN, lastDesk.width / 2 + FLOOR_MARGIN);
+      p.z = THREE.MathUtils.clamp(p.z, -lastDesk.depth / 2, lastDesk.depth / 2 + FLOOR_MARGIN);
       drag.obj.position.x = p.x;
       drag.obj.position.z = p.z;
       drag.moved = true;
